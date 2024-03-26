@@ -2,9 +2,11 @@
 
 ## Upper bound for no. of distinct starting positions for empty board up till 6 pieces (2-line PC)
 
-7 * 31,920 // With hold\
- \+ 154,980 // Empty hold\
- = 378,420 // Actual: 57,750
+```text
+7 * 31,920 // With hold
++ 154,980  // Empty hold
+= 378,420  // Actual: 57,750
+```
 
 ### Possible bags for next 5 pieces
 
@@ -25,9 +27,11 @@
 
 ## Upper bound for no. of distinct starting positions for empty board up till 11 pieces (4-line PC)
 
-7 * 19,897,920  // With hold\
-  \+ 57,576,960  // Empty hold\
-  = 196,862,400 // Actual: 79,516,080
+```text
+7 * 19,897,920 // With hold
++ 57,576,960   // Empty hold
+= 196,862,400  // Actual: 79,516,080
+```
 
 ### Possible bags for next 10 pieces
 
@@ -51,9 +55,11 @@
 
 ## Upper bound for no. of distinct starting positions for empty board up till 16 pieces (6-line PC)
 
-7 * 11,379,916,800  // With hold\
-  \+ 35,384,428,800  // Empty hold\
-  = 115,043,846,400 // Actual: ??? (probably ≈18,800,000,000)
+```text
+7 * 11,379,916,800 // With hold
++ 35,384,428,800   // Empty hold
+= 115,043,846,400  // Actual: 57,596,696,640
+```
 
 ### Possible bags for next 15 pieces
 
@@ -77,34 +83,37 @@
 
 ## Some values for bag sequences (no hold)
 
- 1:              7 | Distinct:           7 | 0ns
- 2:             91 | Distinct:          49 | 0ns
- 3:            798 | Distinct:         336 | 0ns
- 4:          5,544 | Distinct:       2,184 | 0ns
- 5:         31,920 | Distinct:      13,020 | 999.1us
- 6:        154,980 | Distinct:      69,300 | 6.034ms
- 7:        640,080 | Distinct:     322,560 | 36.151ms
- 8:      2,257,920 | Distinct:   1,290,240 | 189.522ms
- 9:      7,020,720 | Distinct:   4,495,680 | 733.981ms
-10:     19,897,920 | Distinct:  14,248,080 | 2.506s
-11:     57,576,960 | Distinct:  46,010,160 | 7.439s
-12:    198,979,200 | Distinct: 172,559,520 | 28.225s
-13:    806,500,800 | Distinct: 727,624,800 | 2m16.363s
-14:  3,226,003,200 | Distinct:       ???
-15: 11,379,916,800 | Distinct:       ???
-16: 35,384,428,800 | Distinct:       ???
+ 1:              7 | Distinct:              7 | 0ns
+ 2:             91 | Distinct:             49 | 0ns
+ 3:            798 | Distinct:            336 | 1.012ms
+ 4:          5,544 | Distinct:          2,184 | 986.9us
+ 5:         31,920 | Distinct:         13,020 | 4.027ms
+ 6:        154,980 | Distinct:         69,300 | 17.039ms
+ 7:        640,080 | Distinct:        322,560 | 53.001ms
+ 8:      2,257,920 | Distinct:      1,290,240 | 152.348ms
+ 9:      7,020,720 | Distinct:      4,495,680 | 414.167ms
+10:     19,897,920 | Distinct:     14,248,080 | 1.185s
+11:     57,576,960 | Distinct:     46,010,160 | 3.82s
+12:    198,979,200 | Distinct:    172,559,520 | 15.073s
+13:    806,500,800 | Distinct:    727,624,800 | 2m16.363s
+14:  3,226,003,200 | Distinct:  2,965,974,480 | 1m4.03s
+15: 11,379,916,800 | Distinct: 10,466,663,040 | 4m16.799s
+16: 35,384,428,800 | Distinct: 33,452,027,280 | 18m30.784s
 
 ## values for next sequence (with hold)
 
- 1:          28 | 0ns
- 2:         196 | 0ns
- 3:       1,365 | 0ns
- 4:       9,198 | 999.2us
- 5:      57,750 | 5.996ms
- 6:     326,340 | 24.324ms
- 7:   1,615,320 | 147.735ms
- 8:   6,854,400 | 865.891ms
- 9:  24,857,280 | 2.996s
-10:  79,516,080 | 10.956s
-11: 247,474,080 | 34.426s
-12:         ???
+ 1:             28 | 0ns
+ 2:            196 | 0ns
+ 3:          1,365 | 0ns
+ 4:          9,198 | 0ns
+ 5:         57,750 | 1.03ms
+ 6:        326,340 | 3.006ms
+ 7:      1,615,320 | 19.363ms
+ 8:      6,849,360 | 31.392ms
+ 9:     24,857,280 | 89.685ms
+10:     79,516,080 | 230.081ms
+11:    247,474,080 | 647.921ms
+12:    880,180,560 | 2.335s
+13:  3,683,700,720 | 9.252s
+14: 15,528,492,000 | 42.102s
+15: 57,596,696,640 | 3m7.601s
