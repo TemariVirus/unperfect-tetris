@@ -1,0 +1,13 @@
+.{
+    .name = "perfect-tetris",
+    .version = "0.0.0",
+    .dependencies = .{
+        .engine = .{
+            .url = "https://github.com/TemariVirus/Budget-Tetris-Engine/archive/9afc1a5cf9e50db3b9c23568caeeba57052a980c.tar.gz",
+            .hash = "1220289220f9df5d7d625f18899505a0fe78e6f80d1f681f31e0bf03c6b8a6cfcc5b",
+        },
+    },
+    .paths = .{
+        "",
+    },
+}
