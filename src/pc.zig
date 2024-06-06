@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 const expect = std.testing.expect;
 
 const engine = @import("engine");
@@ -190,12 +191,15 @@ fn findPcInner(
     };
     defer moves.deinit();
 
+    var held_odd_times = false;
     while (moves.removeOrNull()) |move| {
         const placement = move.placement;
         // Hold if needed
         if (placement.piece.kind != pieces[0]) {
             std.mem.swap(PieceKind, &pieces[0], &pieces[1]);
+            held_odd_times = !held_odd_times;
         }
+        assert(pieces[0] == placement.piece.kind);
 
         var new_game = game;
         new_game.pos = placement.pos;
@@ -221,6 +225,10 @@ fn findPcInner(
             placements[0] = placement;
             return true;
         }
+    }
+    // Unhold if held an odd number of times
+    if (held_odd_times) {
+        std.mem.swap(PieceKind, &pieces[0], &pieces[1]);
     }
 
     return false;
@@ -264,7 +272,7 @@ fn isPcPossible(rows: []const u16) bool {
 test "4-line PC" {
     const allocator = std.testing.allocator;
 
-    var gamestate = GameState.init(kicks.srsPlus);
+    var gamestate = GameState.init(SevenBag.init(0), kicks.srsPlus);
 
     const nn = try NN.load(allocator, "NNs/Fapae.json");
     defer nn.deinit(allocator);

@@ -29,6 +29,13 @@ pub const PiecePosition = packed struct {
             .facing = piece.facing,
         };
     }
+
+    pub fn unpack(self: PiecePosition, piece_kind: PieceKind) Placement {
+        return .{
+            .piece = .{ .kind = piece_kind, .facing = self.facing },
+            .pos = .{ .y = self.y, .x = self.x },
+        };
+    }
 };
 
 /// A set of combinations of pieces and their positions, within certain bounds

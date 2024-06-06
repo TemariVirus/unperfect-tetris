@@ -17,13 +17,8 @@ pub fn main() !void {
 
 // There are 241,315,200 possible 4-line PCs from an empty board with a 7-bag
 // randomiser, so creating a table of all of them is actually feasible.
-// No NN
-// Mean: 754.222ms
-// Max: 13.202s
-//
-// With NN (Fapae)
-// Mean: 90.468ms
-// Max: 1.653s
+// Mean: 206.095ms
+// Max: 4.599s
 pub fn pcBenchmark() !void {
     const RUN_COUNT = 100;
 

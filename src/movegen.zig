@@ -64,13 +64,9 @@ pub fn validMoves(
 
     var new_game = game;
     while (stack.popOrNull()) |placement| {
-        const piece = Piece{
-            .facing = placement.facing,
-            .kind = piece_kind,
-        };
-        const pos = Position{
-            .x = placement.x,
-            .y = placement.y,
+        const piece, const pos = blk: {
+            const temp = placement.unpack(piece_kind);
+            break :blk .{ temp.piece, temp.pos };
         };
         if (seen.putGet(piece, pos)) {
             continue;
@@ -139,7 +135,7 @@ fn collisionSet(playfield: BoardMask, piece_kind: PieceKind, max_height: u6) Pie
         const piece = Piece{ .facing = @enumFromInt(facing.value), .kind = piece_kind };
 
         var y = piece.minY();
-        while (y <= @as(i9, max_height) - piece.top()) : (y += 1) {
+        while (y <= @as(i8, @intCast(max_height)) + piece.minY() - 1) : (y += 1) {
             var x = piece.minX();
             while (x <= piece.maxX()) : (x += 1) {
                 const pos = Position{ .x = x, .y = y };
