@@ -1,8 +1,12 @@
+pub const movegen = @import("movegen.zig");
+pub const neat = @import("neat.zig");
+pub const next = @import("next.zig");
+pub const pc = @import("pc.zig");
+
 const std = @import("std");
 const assert = std.debug.assert;
 
 const engine = @import("engine");
-const BoardMask = engine.bit_masks.BoardMask;
 const Facing = engine.pieces.Facing;
 const Piece = engine.pieces.Piece;
 const PieceKind = engine.pieces.PieceKind;
@@ -14,26 +18,16 @@ pub const Placement = struct {
 };
 
 pub const PiecePosition = packed struct {
-    const x_offset = 2; // Minimum x for position is -2
-
     y: i8,
-    x: u4,
+    x: i6,
     facing: Facing,
 
     pub fn pack(piece: Piece, pos: Position) PiecePosition {
         return PiecePosition{
             .y = pos.y,
-            .x = @as(u4, @intCast(pos.x + x_offset)),
+            .x = @intCast(pos.x),
             .facing = piece.facing,
         };
-    }
-
-    pub fn getX(self: PiecePosition) i8 {
-        return @as(i8, self.x) - x_offset;
-    }
-
-    pub fn setX(self: *PiecePosition, x: i8) void {
-        self.x = @as(u4, @intCast(x + x_offset));
     }
 };
 
@@ -47,6 +41,18 @@ pub fn PiecePosSet(comptime shape: [3]usize) type {
         const Self = @This();
 
         data: BackingSet,
+
+        pub const Iterator = struct {
+            set: BackingSet.Iterator(.{}),
+            piece: PieceKind,
+
+            pub fn next(self: *Iterator) ?Placement {
+                if (self.set.next()) |index| {
+                    return reverseIndex(self.piece, index);
+                }
+                return null;
+            }
+        };
 
         /// Initialises an empty set.
         pub fn init() Self {
@@ -70,14 +76,15 @@ pub fn PiecePosSet(comptime shape: [3]usize) type {
 
         /// Converts an index into the backing bit set to it's coressponding piece and
         /// position.
-        pub fn reverseIndex(piece: PieceKind, index: usize) Placement {
+        pub fn reverseIndex(piece_kind: PieceKind, index: usize) Placement {
             const x = index % shape[0];
             const y = (index / shape[0]) % shape[1];
             const facing = index / (shape[0] * shape[1]);
 
+            const piece = Piece{ .kind = piece_kind, .facing = @enumFromInt(facing) };
             return .{
-                .piece = .{ .kind = piece, .facing = @enumFromInt(facing) },
-                .pos = .{ .x = @intCast(x), .y = @intCast(y) },
+                .piece = piece,
+                .pos = .{ .x = @as(i8, @intCast(x)) + piece.minX(), .y = @as(i8, @intCast(y)) + piece.minY() },
             };
         }
 
@@ -102,6 +109,14 @@ pub fn PiecePosSet(comptime shape: [3]usize) type {
             const was_set = self.data.isSet(index);
             self.data.set(index);
             return was_set;
+        }
+
+        /// Returns an iterator over the set.
+        pub fn iterator(self: *const Self, piece_kind: PieceKind) Iterator {
+            return Iterator{
+                .set = self.data.iterator(.{}),
+                .piece = piece_kind,
+            };
         }
     };
 }

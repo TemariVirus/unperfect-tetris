@@ -1,20 +1,24 @@
 const std = @import("std");
+const assert = std.debug.assert;
 
 const engine = @import("engine");
-const Bag = engine.bags.SevenBag;
-const GameState = engine.GameState(Bag);
+const GameState = engine.GameState(SevenBag);
 const PieceKind = engine.pieces.PieceKind;
+const SevenBag = engine.bags.SevenBag;
 
 const next = @import("next.zig");
+const NN = @import("neat/NN.zig");
 const pc = @import("pc.zig");
 
-const MAX_HEIGHT = 2;
+const MAX_HEIGHT = 4;
 const NEXT_LEN = MAX_HEIGHT * 5 / 2;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
+
+    const nn = try NN.load(allocator, "NNs/Fapae.json");
 
     var iter = next.SequenceIterator(NEXT_LEN + 1, @min(7, NEXT_LEN)).init(allocator);
     defer iter.deinit();
@@ -38,14 +42,13 @@ pub fn main() !void {
     while (try iter.next()) |pieces| {
         count += 1;
 
-        var game = GameState.init(Bag.init(0), engine.kicks.srs);
-        game.hold_kind = pieces[0];
-        game.current.kind = pieces[1];
-        @memcpy(&game.next_pieces, pieces[2..9]);
-        game.bag.context.index = 0;
-        @memcpy(game.bag.context.pieces[0..2], pieces[9..]);
-
-        const solution = pc.findPc(allocator, game, 0, NEXT_LEN + 1) catch continue;
+        const solution = pc.findPc(
+            allocator,
+            gameWithPieces(&pieces),
+            nn,
+            0,
+            NEXT_LEN + 1,
+        ) catch continue;
         defer allocator.free(solution);
 
         solved += 1;
@@ -59,6 +62,22 @@ pub fn main() !void {
         @as(f64, @floatFromInt(solved)) / @as(f64, @floatFromInt(count)) * 100,
     });
     std.debug.print("Took {} per sequence\n", .{std.fmt.fmtDuration(time / count)});
+}
+
+fn gameWithPieces(pieces: []const PieceKind) GameState {
+    var game = GameState.init(SevenBag.init(0), engine.kicks.srs);
+    game.current.kind = pieces[0];
+    game.hold_kind = pieces[1];
+
+    for (0..@min(pieces.len - 2, game.next_pieces.len)) |i| {
+        game.next_pieces[i] = pieces[i + 2];
+    }
+    game.bag.context.index = 0;
+    for (0..pieces.len -| 9) |i| {
+        game.bag.context.pieces[i] = pieces[i + 9];
+    }
+
+    return game;
 }
 
 pub fn countNextSequences() !void {

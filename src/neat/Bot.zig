@@ -366,6 +366,7 @@ fn search(self: *Self, game: GameState, depth: u32, cleared: u32, attack: f32, p
 }
 
 // TODO: Optimise with SIMD
+// TODO: Optimize with max height
 pub fn getFeatures(playfield: BoardMask, inputs_used: [5]bool, cleared: u32, attack: f32, intent: f32) [8]f32 {
     // Find highest block in each column
     // Heights start from 0
