@@ -10,7 +10,6 @@ const NN = @import("neat/NN.zig");
 const Bot = @import("neat/Bot.zig");
 
 pub fn main() !void {
-    _ = std.os.windows.kernel32.SetConsoleOutputCP(65001);
     try pcBenchmark();
     getFeaturesBenchmark();
 }
