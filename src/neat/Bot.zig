@@ -64,7 +64,13 @@ pub fn findMoves(self: *Self, game: GameState) Placement {
     var best_score = -std.math.inf(f32);
     var best_placement: Placement = undefined;
 
-    const output = self.network.predict(getFeatures(game.playfield, self.network.inputs_used, 0, 0, 0));
+    const output = self.network.predict(getFeatures(
+        game.playfield,
+        self.network.inputs_used,
+        0,
+        0,
+        0,
+    ));
     // TODO: Cache
     // ulong hash = HashState(0, 0, 0);
     // if (!CachedStateValues.ContainsKey(hash))
@@ -107,8 +113,19 @@ pub fn findMoves(self: *Self, game: GameState) Placement {
                         const info = new_state.lockCurrent(-1);
                         new_state.nextPiece();
                         // Check if better
-                        const attack: f32 = @floatFromInt(self.attack_table.getAttack(info, new_state.b2b, new_state.combo));
-                        const score = search(self, new_state, @intCast(depth), info.cleared, attack, output);
+                        const attack: f32 = @floatFromInt(self.attack_table.getAttack(
+                            info,
+                            new_state.b2b,
+                            new_state.combo,
+                        ));
+                        const score = search(
+                            self,
+                            new_state,
+                            @intCast(depth),
+                            info.cleared,
+                            attack,
+                            output,
+                        );
                         if (score > best_score) {
                             best_score = score;
                             best_placement = .{
@@ -120,7 +137,9 @@ pub fn findMoves(self: *Self, game: GameState) Placement {
 
                     // Only try to spin left/right facing pieces into place, except O pieces
                     // which have no kicks
-                    if ((clone.current.facing == .left or clone.current.facing == .right) and clone.current.kind != .o) {
+                    if ((clone.current.facing == .left or clone.current.facing == .right) and
+                        clone.current.kind != .o)
+                    {
                         for (0..2) |r| {
                             const rotation = switch (r) {
                                 0 => Rotation.quarter_cw,
@@ -191,10 +210,15 @@ pub fn findMoves(self: *Self, game: GameState) Placement {
 
     // Adjust movetresh
     self.end_search = true;
-    const time_remaining: f32 = @floatFromInt(@as(i128, @intCast(self.think_nanos)) - std.time.nanoTimestamp());
+    const time_remaining: f32 = @floatFromInt(@as(i128, @intCast(self.think_nanos)) -
+        std.time.nanoTimestamp());
     const time_remaining_rel = time_remaining / @as(f32, @floatFromInt(self.think_nanos));
     if (time_remaining_rel > 0) {
-        self.move_tresh *= std.math.pow(f32, MOVE_MUL, time_remaining_rel * (std.math.e - time_remaining_rel) / (1 + std.math.e));
+        self.move_tresh *= std.math.pow(
+            f32,
+            MOVE_MUL,
+            time_remaining_rel * (std.math.e - time_remaining_rel) / (1 + std.math.e),
+        );
     } else {
         self.move_tresh *= std.math.pow(f32, MOVE_MUL, self.max_depth - MOVE_TARGET);
     }
@@ -203,7 +227,14 @@ pub fn findMoves(self: *Self, game: GameState) Placement {
     return best_placement;
 }
 
-fn search(self: *Self, game: GameState, depth: u32, cleared: u32, attack: f32, prev_output: [2]f32) f32 {
+fn search(
+    self: *Self,
+    game: GameState,
+    depth: u32,
+    cleared: u32,
+    attack: f32,
+    prev_output: [2]f32,
+) f32 {
     if (self.end_search or std.time.nanoTimestamp() - self.start_time > self.think_nanos) {
         self.end_search = true;
         return -std.math.inf(f32);
@@ -218,7 +249,13 @@ fn search(self: *Self, game: GameState, depth: u32, cleared: u32, attack: f32, p
         // if (CachedStateValues.ContainsKey(hash))
         //     return CachedStateValues[hash];
 
-        const features = getFeatures(game.playfield, self.network.inputs_used, cleared, attack, prev_output[1]);
+        const features = getFeatures(
+            game.playfield,
+            self.network.inputs_used,
+            cleared,
+            attack,
+            prev_output[1],
+        );
         const score = self.network.predict(features)[0];
         // TODO: Cache
         // CachedStateValues.Add(hash, score);
@@ -367,7 +404,13 @@ fn search(self: *Self, game: GameState, depth: u32, cleared: u32, attack: f32, p
 
 // TODO: Optimise with SIMD
 // TODO: Optimize with max height
-pub fn getFeatures(playfield: BoardMask, inputs_used: [5]bool, cleared: u32, attack: f32, intent: f32) [8]f32 {
+pub fn getFeatures(
+    playfield: BoardMask,
+    inputs_used: [5]bool,
+    cleared: u32,
+    attack: f32,
+    intent: f32,
+) [8]f32 {
     // Find highest block in each column
     // Heights start from 0
     var heights: [10]i32 = undefined;
@@ -435,7 +478,10 @@ pub fn getFeatures(playfield: BoardMask, inputs_used: [5]bool, cleared: u32, att
                 // NOTE: Uncomment this line to restore the bug in the original code
                 // 0 => @min(0, heights[1] - heights[0]),
                 0 => @max(0, heights[1] - heights[0]),
-                1...8 => @intCast(@min(@abs(heights[x - 1] - heights[x]), @abs(heights[x + 1] - heights[x]))),
+                1...8 => @intCast(@min(
+                    @abs(heights[x - 1] - heights[x]),
+                    @abs(heights[x + 1] - heights[x]),
+                )),
                 9 => @max(0, heights[8] - heights[9]),
                 else => unreachable,
             };
@@ -461,14 +507,24 @@ pub fn getFeatures(playfield: BoardMask, inputs_used: [5]bool, cleared: u32, att
 
     // Column trasitions
     const col_trans: f32 = if (inputs_used[4]) blk: {
-        var col_trans: u32 = @popCount(playfield.rows[LEGACY_HEIGHT - 1] & ~BoardMask.EMPTY_ROW);
+        var col_trans: u32 = @popCount(playfield.rows[LEGACY_HEIGHT - 1] &
+            ~BoardMask.EMPTY_ROW);
         for (0..LEGACY_HEIGHT - 1) |y| {
             col_trans += @popCount(playfield.rows[y] ^ playfield.rows[y + 1]);
         }
         break :blk @floatFromInt(col_trans);
     } else undefined;
 
-    return .{ std_h, caves, pillars, row_trans, col_trans, attack, @floatFromInt(cleared), intent };
+    return .{
+        std_h,
+        caves,
+        pillars,
+        row_trans,
+        col_trans,
+        attack,
+        @floatFromInt(cleared),
+        intent,
+    };
 }
 
 test getFeatures {

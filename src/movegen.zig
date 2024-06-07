@@ -97,7 +97,9 @@ pub fn validMoves(
             }
 
             // Branch out after movement
-            stack.append(PiecePosition.pack(new_game.current, new_game.pos)) catch unreachable;
+            stack.append(
+                PiecePosition.pack(new_game.current, new_game.pos),
+            ) catch unreachable;
 
             if (
             // Skip this placement if the piece is too high
@@ -129,7 +131,11 @@ pub fn validMoves(
     return placements;
 }
 
-fn collisionSet(playfield: BoardMask, piece_kind: PieceKind, max_height: u6) PiecePosSet {
+fn collisionSet(
+    playfield: BoardMask,
+    piece_kind: PieceKind,
+    max_height: u6,
+) PiecePosSet {
     var collisions = PiecePosSet.init();
     inline for (@typeInfo(engine.pieces.Facing).Enum.fields) |facing| {
         const piece = Piece{ .facing = @enumFromInt(facing.value), .kind = piece_kind };

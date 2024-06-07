@@ -83,7 +83,11 @@ fn buildTests(b: *Build, engine_module: *Build.Module) void {
     test_step.dependOn(&run_lib_tests.step);
 }
 
-fn buildBench(b: *Build, target: Build.ResolvedTarget, engine_module: *Build.Module) void {
+fn buildBench(
+    b: *Build,
+    target: Build.ResolvedTarget,
+    engine_module: *Build.Module,
+) void {
     const bench_exe = b.addExecutable(.{
         .name = "Budget Tetris Bot Benchmarks",
         .root_source_file = .{ .path = "src/bench.zig" },

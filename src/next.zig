@@ -42,8 +42,10 @@ pub fn PieceArray(comptime len: usize) type {
             assert(~mask & self.items == 0);
             return .{
                 .items = self.items &
-                    ~(item_mask << @intCast(index * item_size)) | // Write 0 at index
-                    (@as(u64, value) << @intCast(index * item_size)), // Write value at index
+                    // Write 0 at index
+                    ~(item_mask << @intCast(index * item_size)) |
+                    // Write value at index
+                    (@as(u64, value) << @intCast(index * item_size)),
             };
         }
 
@@ -88,13 +90,20 @@ pub fn NextIterator(comptime len: usize, comptime lock_len: usize) type {
                     iters[i] = if (i < locks.len) @as(u7, 1) << locks[i] else frees[i];
                 }
                 // If locks are impossible to satisfy, return an empty iterator
-                if (@popCount(frees[size - 1] ^ (iters[size - 1] & (~iters[size - 1] +% 1))) != 7 - @as(u8, size)) {
+                if (@popCount(frees[size - 1] ^ (iters[size - 1] & (~iters[size - 1] +% 1))) !=
+                    7 - @as(u8, size))
+                {
                     iters[0] = 0;
                 }
                 return .{ .frees = frees, .iters = iters };
             }
 
-            pub fn next(self: *@This(), pieces: NextArray, offset: usize, size: BagLenInt) ?NextArray {
+            pub fn next(
+                self: *@This(),
+                pieces: NextArray,
+                offset: usize,
+                size: BagLenInt,
+            ) ?NextArray {
                 if (self.iters[0] == 0) {
                     return null;
                 }
@@ -129,7 +138,8 @@ pub fn NextIterator(comptime len: usize, comptime lock_len: usize) type {
             }
         };
 
-        sizes: [n_bags]BagLenInt, // Can be reduced to a single int but the logic becomes more complicated.
+        // Can be reduced to a single int but the logic becomes more complicated.
+        sizes: [n_bags]BagLenInt,
         bags: [n_bags]BagIterator,
         locks: [lock_len]u3,
         pieces: NextArray,

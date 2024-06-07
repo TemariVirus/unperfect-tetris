@@ -150,7 +150,12 @@ connections: JaggedArray(Connection),
 inputs_used: [5]bool,
 
 /// Initializes a neural network from a list of connections and activation functions.
-pub fn init(allocator: Allocator, name: []const u8, connections: []ConnectionJson, activations: []ActivationType) !Self {
+pub fn init(
+    allocator: Allocator,
+    name: []const u8,
+    connections: []ConnectionJson,
+    activations: []ActivationType,
+) !Self {
     const node_count = blk: {
         var max: u32 = 0;
         for (connections) |c| {
@@ -207,11 +212,14 @@ pub fn init(allocator: Allocator, name: []const u8, connections: []ConnectionJso
     }
 
     for (connections) |c| {
-        // This implementation is only meant for inference, so we can discard disabled connections
+        // This implementation is only meant for inference, so we can discard
+        // disabled connections
         if (!c.Enabled or !useful[c.Input] or !useful[c.Output]) {
             continue;
         }
-        try connection_lists[node_map[c.Output]].append(.{ .input = c.Input, .weight = c.Weight });
+        try connection_lists[node_map[c.Output]].append(
+            .{ .input = c.Input, .weight = c.Weight },
+        );
     }
     const connections_arrs = try JaggedArray(Connection).init(allocator, connection_lists);
 
@@ -236,7 +244,12 @@ pub fn load(allocator: Allocator, path: []const u8) !Self {
     });
     defer saved.deinit();
 
-    return try init(allocator, saved.value.Name, saved.value.Connections, saved.value.Activations);
+    return try init(
+        allocator,
+        saved.value.Name,
+        saved.value.Connections,
+        saved.value.Activations,
+    );
 }
 
 /// The allcator passed in must be the same allocator used to allocate the NN.
@@ -309,7 +322,10 @@ pub fn predict(self: Self, input: [INPUTS]f32) [OUTPUTS]f32 {
     // Update ouput nodes and get output
     var output: [OUTPUTS]f32 = undefined;
     for (0..OUTPUTS) |i| {
-        self.nodes[OUTPUT_OFFSET + i].updateValue(self.nodes, self.connections.get(OUTPUT_OFFSET + i));
+        self.nodes[OUTPUT_OFFSET + i].updateValue(
+            self.nodes,
+            self.connections.get(OUTPUT_OFFSET + i),
+        );
         output[i] = self.nodes[OUTPUT_OFFSET + i].value;
     }
 

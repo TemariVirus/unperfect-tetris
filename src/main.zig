@@ -118,6 +118,9 @@ pub fn countNextSequences() !void {
         }
 
         const t: u64 = @intCast(std.time.nanoTimestamp() - start);
-        std.debug.print("{:2} | Iters: {:11} | Distinct: {:11} | Time: {}\n", .{ i, iter_count, seen_count, std.fmt.fmtDuration(t) });
+        std.debug.print(
+            "{:2} | Iters: {:11} | Distinct: {:11} | Time: {}\n",
+            .{ i, iter_count, seen_count, std.fmt.fmtDuration(t) },
+        );
     }
 }

@@ -91,7 +91,10 @@ pub fn PiecePosSet(comptime shape: [3]usize) type {
             const piece = Piece{ .kind = piece_kind, .facing = @enumFromInt(facing) };
             return .{
                 .piece = piece,
-                .pos = .{ .x = @as(i8, @intCast(x)) + piece.minX(), .y = @as(i8, @intCast(y)) + piece.minY() },
+                .pos = .{
+                    .x = @as(i8, @intCast(x)) + piece.minX(),
+                    .y = @as(i8, @intCast(y)) + piece.minY(),
+                },
             };
         }
 

@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const SolutionList = std.ArrayList([]Placement);
 const time = std.time;
 
 const engine = @import("engine");
@@ -27,7 +28,13 @@ pub fn main() !void {
     defer _ = gpa.deinit();
 
     // Add 2 to create a 1-wide empty boarder on the left and right.
-    try nterm.init(allocator, std.io.getStdOut(), FPS_TIMING_WINDOW, Player.DISPLAY_W + 2, Player.DISPLAY_H);
+    try nterm.init(
+        allocator,
+        std.io.getStdOut(),
+        FPS_TIMING_WINDOW,
+        Player.DISPLAY_W + 2,
+        Player.DISPLAY_H,
+    );
     defer nterm.deinit();
 
     const settings = engine.GameSettings{
@@ -50,7 +57,7 @@ pub fn main() !void {
     );
 
     var placement_i: usize = 0;
-    var pc_queue = std.ArrayList([]Placement).init(allocator);
+    var pc_queue = SolutionList.init(allocator);
     defer pc_queue.deinit();
 
     const pc_thread = try std.Thread.spawn(.{
@@ -85,7 +92,12 @@ pub fn main() !void {
     }
 }
 
-fn placePcPiece(allocator: Allocator, game: *Player, queue: *std.ArrayList([]Placement), placement_i: *usize) void {
+fn placePcPiece(
+    allocator: Allocator,
+    game: *Player,
+    queue: *SolutionList,
+    placement_i: *usize,
+) void {
     if (queue.items.len == 0) {
         return;
     }
@@ -106,7 +118,7 @@ fn placePcPiece(allocator: Allocator, game: *Player, queue: *std.ArrayList([]Pla
     }
 }
 
-fn pcThread(allocator: Allocator, state: GameState, queue: *std.ArrayList([]Placement)) !void {
+fn pcThread(allocator: Allocator, state: GameState, queue: *SolutionList) !void {
     var game = state;
 
     const nn = try NN.load(allocator, "NNs/Fapae.json");

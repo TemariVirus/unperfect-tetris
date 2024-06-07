@@ -49,7 +49,10 @@ pub fn pcBenchmark() !void {
         total_time += time_taken;
         max_time = @max(max_time, time_taken);
 
-        std.debug.print("Seed: {} | Time taken: {}\n", .{ seed, std.fmt.fmtDuration(time_taken) });
+        std.debug.print(
+            "Seed: {:<2} | Time taken: {}\n",
+            .{ seed, std.fmt.fmtDuration(time_taken) },
+        );
         allocator.free(solution);
     }
 
