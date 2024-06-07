@@ -7,6 +7,7 @@ const engine = @import("engine");
 const kicks = engine.kicks;
 const BoardMask = engine.bit_masks.BoardMask;
 const GameState = engine.GameState(SevenBag);
+const KickFn = engine.kicks.KickFn;
 const PieceKind = engine.pieces.PieceKind;
 const SevenBag = engine.bags.SevenBag;
 
@@ -26,14 +27,11 @@ const SearchNode = struct {
 };
 const NodeSet = std.AutoHashMap(SearchNode, void);
 
-const VISUALISE = false;
-
 pub const FindPcError = error{
     NoPcExists,
     NotEnoughPieces,
 };
 
-// TODO: take a playfield and kick fn instead of a gamestate
 /// Finds a perfect clear with the least number of pieces possible for the given
 /// game state, and returns the sequence of placements required to achieve it.
 ///
@@ -95,7 +93,16 @@ pub fn findPc(
         errdefer allocator.free(placements);
 
         cache.clearRetainingCapacity();
-        if (try findPcInner(allocator, game, &pieces, placements, &cache, nn, @intCast(max_height))) {
+        if (try findPcInner(
+            allocator,
+            game.playfield,
+            &pieces,
+            placements,
+            game.kicks,
+            &cache,
+            nn,
+            @intCast(max_height),
+        )) {
             return placements;
         }
 
@@ -137,9 +144,10 @@ fn getPieces(game: GameState, comptime pieces_count: usize) [pieces_count]PieceK
 
 fn findPcInner(
     allocator: Allocator,
-    game: GameState,
+    playfield: BoardMask,
     pieces: []PieceKind,
     placements: []Placement,
+    kick_fn: *const KickFn,
     cache: *NodeSet,
     nn: NN,
     max_height: u6,
@@ -150,7 +158,7 @@ fn findPcInner(
     }
 
     const node = SearchNode{
-        .board = game.playfield,
+        .board = playfield,
         .current = pieces[0],
         .max_height = max_height,
     };
@@ -159,34 +167,23 @@ fn findPcInner(
         return false;
     }
 
-    if (VISUALISE) {
-        std.debug.print("\x1B[1;1H{}", .{game});
-    }
-
-    const scoreFn = struct {
-        fn score(_game: GameState, placement: Placement, _nn: NN) f32 {
-            var new_game = _game;
-            new_game.playfield.place(placement.piece.mask(), placement.pos);
-            // TODO: move clearlines to boardmask
-            _ = new_game.clearLines();
-
-            const features = Bot.getFeatures(new_game.playfield, _nn.inputs_used, 0, 0, 0);
-            return _nn.predict(features)[0];
-        }
-    }.score;
-
     var moves = blk: {
         var moves = movegen.MoveQueue.init(allocator, {});
+        const game = GameState{
+            .playfield = playfield,
+            .kicks = kick_fn,
+            .bag = undefined,
+        };
 
         const m1 = movegen.validMoves(game, pieces[0], max_height, isPcPossible);
-        try movegen.orderMoves(&moves, game, pieces[0], m1, nn, scoreFn);
+        try movegen.orderMoves(&moves, playfield, pieces[0], m1, nn, orderScore);
         // Check for unique hold
         if (pieces.len < 2 or pieces[0] == pieces[1]) {
             break :blk moves;
         }
 
         const m2 = movegen.validMoves(game, pieces[1], max_height, isPcPossible);
-        try movegen.orderMoves(&moves, game, pieces[1], m2, nn, scoreFn);
+        try movegen.orderMoves(&moves, playfield, pieces[1], m2, nn, orderScore);
         break :blk moves;
     };
     defer moves.deinit();
@@ -201,23 +198,18 @@ fn findPcInner(
         }
         assert(pieces[0] == placement.piece.kind);
 
-        var new_game = game;
-        new_game.pos = placement.pos;
-        // Place piece
-        if (VISUALISE) {
-            // Hide the current piece behind where it was just placed
-            new_game.current = placement.piece;
-        }
-        new_game.playfield.place(placement.piece.mask(), placement.pos);
+        var board = playfield;
+        board.place(placement.piece.mask(), placement.pos);
         // TODO: Optimize clearLines
-        const cleared = new_game.clearLines();
+        const cleared = board.clearLines(placement.pos.y);
 
         const new_height = max_height - cleared;
         if (try findPcInner(
             allocator,
-            new_game,
+            board,
             pieces[1..],
             placements[1..],
+            kick_fn,
             cache,
             nn,
             new_height,
@@ -267,6 +259,15 @@ fn isPcPossible(rows: []const u16) bool {
     }
 
     return true;
+}
+
+fn orderScore(playfield: BoardMask, placement: Placement, nn: NN) f32 {
+    var board = playfield;
+    board.place(placement.piece.mask(), placement.pos);
+    _ = board.clearLines(placement.pos.y);
+
+    const features = Bot.getFeatures(board, nn.inputs_used, 0, 0, 0);
+    return nn.predict(features)[0];
 }
 
 test "4-line PC" {

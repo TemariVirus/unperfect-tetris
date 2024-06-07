@@ -108,15 +108,15 @@ pub fn validMoves(
                 new_game.current,
                 Position{ .x = new_game.pos.x, .y = new_game.pos.y - 1 },
             )) or
-                // TODO: not strictly necessary but speeds things up
                 // Skip this placement if it already exists.
+                // Not strictly necessary but speeds things up
                 placements.contains(new_game.current, new_game.pos))
             {
                 continue;
             }
 
             new_game.playfield.place(new_game.current.mask(), new_game.pos);
-            const cleared = new_game.clearLines();
+            const cleared = new_game.playfield.clearLines(new_game.pos.y);
             const new_height = max_height - cleared;
             if (!validFn(new_game.playfield.rows[0..new_height])) {
                 continue;
@@ -149,7 +149,7 @@ fn collisionSet(playfield: BoardMask, piece_kind: PieceKind, max_height: u6) Pie
     return collisions;
 }
 
-const MoveNode = struct {
+pub const MoveNode = struct {
     placement: Placement,
     score: f32,
 };
@@ -160,20 +160,19 @@ const compareFn = (struct {
 }).cmp;
 pub const MoveQueue = std.PriorityQueue(MoveNode, void, compareFn);
 
-// TODO: compare with sorted array
 pub fn orderMoves(
     queue: *MoveQueue,
-    game: GameState,
+    playfield: BoardMask,
     piece: PieceKind,
     moves: PiecePosSet,
     score_args: anytype,
-    comptime scoreFn: fn (GameState, Placement, @TypeOf(score_args)) f32,
+    comptime scoreFn: fn (BoardMask, Placement, @TypeOf(score_args)) f32,
 ) !void {
     var iter = moves.iterator(piece);
     while (iter.next()) |placement| {
         try queue.add(.{
             .placement = placement,
-            .score = scoreFn(game, placement, score_args),
+            .score = scoreFn(playfield, placement, score_args),
         });
     }
 }
