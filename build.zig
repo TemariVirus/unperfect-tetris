@@ -50,25 +50,25 @@ fn buildDemo(
     nterm_module: *Build.Module,
     install_NNs: *Build.Step.InstallDir,
 ) void {
-    const train_exe = b.addExecutable(.{
+    const demo_exe = b.addExecutable(.{
         .name = "perfect-tetris-demo",
         .root_source_file = .{ .path = "src/demo.zig" },
         .target = target,
         .optimize = optimize,
     });
-    train_exe.root_module.addImport("engine", engine_module);
-    train_exe.root_module.addImport("nterm", nterm_module);
+    demo_exe.root_module.addImport("engine", engine_module);
+    demo_exe.root_module.addImport("nterm", nterm_module);
 
-    b.installArtifact(train_exe);
+    b.installArtifact(demo_exe);
 
     // Add demo step
-    const run_cmd = b.addRunArtifact(train_exe);
+    const run_cmd = b.addRunArtifact(demo_exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
     const run_step = b.step("demo", "Run the demo");
-    train_exe.step.dependOn(&install_NNs.step);
+    demo_exe.step.dependOn(&install_NNs.step);
     run_step.dependOn(&run_cmd.step);
 }
 

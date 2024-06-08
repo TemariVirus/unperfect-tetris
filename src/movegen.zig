@@ -3,24 +3,23 @@ const expect = std.testing.expect;
 const Order = std.math.Order;
 
 const engine = @import("engine");
-const BoardMask = engine.bit_masks.BoardMask;
-const GameState = engine.GameState(SevenBag);
+const KickFn = engine.kicks.KickFn;
 const Position = engine.pieces.Position;
 const Piece = engine.pieces.Piece;
 const PieceKind = engine.pieces.PieceKind;
-const SevenBag = engine.bags.SevenBag;
+const Rotation = engine.kicks.Rotation;
 
 const root = @import("root.zig");
+const BoardMask = root.bit_masks.BoardMask;
 const NN = root.neat.NN;
 pub const PiecePosition = root.PiecePosition;
-const PiecePosSet = root.PiecePosSet(.{ 10, 24, 4 });
+const PiecePosSet = root.PiecePosSet(.{ 10, 10, 4 });
+const PieceMask = root.bit_masks.PieceMask;
 const Placement = root.Placement;
 
-// By drawing a snaking path through the playfield, the highest density of
-// pushed unexplored nodes (around 2 / 3) is achieved. Thus, the highest stack
-// length is given by: 10 * 24 * 4 * (2 / 3) = 640.
-const PlacementStack = std.BoundedArray(PiecePosition, 640);
+const PlacementStack = std.BoundedArray(PiecePosition, 240);
 
+// TODO: Make iterate through enum fields instead of hardcoding an array
 const Move = enum {
     left,
     right,
@@ -39,15 +38,81 @@ const Move = enum {
     };
 };
 
+pub const Intermediate = struct {
+    playfield: BoardMask,
+    current: Piece,
+    pos: Position,
+    kicks: *const KickFn,
+
+    pub fn makeMove(self: *Intermediate, move: Move) bool {
+        return switch (move) {
+            .left => blk: {
+                if (self.pos.x <= self.current.minX()) {
+                    break :blk false;
+                }
+                break :blk self.tryTranspose(Position{ .x = self.pos.x - 1, .y = self.pos.y });
+            },
+            .right => blk: {
+                if (self.pos.x >= self.current.maxX()) {
+                    break :blk false;
+                }
+                break :blk self.tryTranspose(Position{ .x = self.pos.x + 1, .y = self.pos.y });
+            },
+            .rotate_cw => self.tryRotate(.quarter_cw),
+            .rotate_double => self.tryRotate(.half),
+            .rotate_ccw => self.tryRotate(.quarter_ccw),
+            .drop => blk: {
+                if (self.pos.y <= self.current.minY()) {
+                    break :blk false;
+                }
+                break :blk self.tryTranspose(Position{ .x = self.pos.x, .y = self.pos.y - 1 });
+            },
+        };
+    }
+
+    fn tryTranspose(self: *Intermediate, pos: Position) bool {
+        if (self.playfield.collides(self.current, pos)) {
+            return false;
+        }
+        self.pos = pos;
+        return true;
+    }
+
+    fn tryRotate(self: *Intermediate, rotation: Rotation) bool {
+        const new_piece = Piece{
+            .facing = self.current.facing.rotate(rotation),
+            .kind = self.current.kind,
+        };
+
+        for (self.kicks(self.current, rotation)) |kick| {
+            const kicked_pos = self.pos.add(kick);
+            if (!self.playfield.collides(new_piece, kicked_pos)) {
+                self.current = new_piece;
+                self.pos = kicked_pos;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    pub fn onGround(self: Intermediate) bool {
+        return self.playfield.collides(
+            self.current,
+            Position{ .x = self.pos.x, .y = self.pos.y - 1 },
+        );
+    }
+};
+
 /// Returns the set of all placements where the top of the piece does not
 /// exceed `max_height` and `validFn` returns true.
 pub fn validMoves(
-    game: GameState,
+    playfield: BoardMask,
+    kicks: *const KickFn,
     piece_kind: PieceKind,
     max_height: u6,
-    comptime validFn: fn ([]const u16) bool,
+    comptime validFn: fn (BoardMask, u6) bool,
 ) PiecePosSet {
-    const collisions = collisionSet(game.playfield, piece_kind, max_height);
     var seen = PiecePosSet.init();
     var placements = PiecePosSet.init();
     var stack = PlacementStack.init(0) catch unreachable;
@@ -62,7 +127,6 @@ pub fn validMoves(
         stack.append(PiecePosition.pack(piece, pos)) catch unreachable;
     }
 
-    var new_game = game;
     while (stack.popOrNull()) |placement| {
         const piece, const pos = blk: {
             const temp = placement.unpack(piece_kind);
@@ -73,24 +137,16 @@ pub fn validMoves(
         }
 
         for (Move.moves) |move| {
-            new_game.playfield = game.playfield;
-            new_game.current = piece;
-            new_game.pos = pos;
+            var new_game = Intermediate{
+                .playfield = playfield,
+                .current = piece,
+                .pos = pos,
+                .kicks = kicks,
+            };
 
             // Skip if piece was unable to move
-            switch (move) {
-                .left => _ = new_game.slide(-1),
-                .right => _ = new_game.slide(1),
-                .rotate_cw => _ = new_game.rotate(.quarter_cw),
-                .rotate_double => _ = new_game.rotate(.half),
-                .rotate_ccw => _ = new_game.rotate(.quarter_ccw),
-                .drop => if (new_game.pos.y > new_game.current.minY() and
-                    !collisions.contains(
-                    piece,
-                    Position{ .x = new_game.pos.x, .y = new_game.pos.y - 1 },
-                )) {
-                    new_game.pos.y -= 1;
-                },
+            if (!new_game.makeMove(move)) {
+                continue;
             }
             if (seen.contains(new_game.current, new_game.pos)) {
                 continue;
@@ -101,26 +157,17 @@ pub fn validMoves(
                 PiecePosition.pack(new_game.current, new_game.pos),
             ) catch unreachable;
 
-            if (
-            // Skip this placement if the piece is too high
-            new_game.pos.y + @as(i8, new_game.current.top()) > max_height or
-                // Only lock if on ground
-                (new_game.pos.y > new_game.current.minY() and
-                !collisions.contains(
-                new_game.current,
-                Position{ .x = new_game.pos.x, .y = new_game.pos.y - 1 },
-            )) or
-                // Skip this placement if it already exists.
-                // Not strictly necessary but speeds things up
-                placements.contains(new_game.current, new_game.pos))
+            // Skip this placement if the piece is too, or if it's not on the ground
+            if (new_game.pos.y + @as(i8, new_game.current.top()) > max_height or
+                !new_game.onGround())
             {
                 continue;
             }
 
-            new_game.playfield.place(new_game.current.mask(), new_game.pos);
+            new_game.playfield.place(PieceMask.from(new_game.current), new_game.pos);
             const cleared = new_game.playfield.clearLines(new_game.pos.y);
             const new_height = max_height - cleared;
-            if (!validFn(new_game.playfield.rows[0..new_height])) {
+            if (!validFn(new_game.playfield, new_height)) {
                 continue;
             }
 
@@ -129,30 +176,6 @@ pub fn validMoves(
     }
 
     return placements;
-}
-
-fn collisionSet(
-    playfield: BoardMask,
-    piece_kind: PieceKind,
-    max_height: u6,
-) PiecePosSet {
-    var collisions = PiecePosSet.init();
-    inline for (@typeInfo(engine.pieces.Facing).Enum.fields) |facing| {
-        const piece = Piece{ .facing = @enumFromInt(facing.value), .kind = piece_kind };
-
-        var y = piece.minY();
-        while (y <= @as(i8, @intCast(max_height)) + piece.minY() - 1) : (y += 1) {
-            var x = piece.minX();
-            while (x <= piece.maxX()) : (x += 1) {
-                const pos = Position{ .x = x, .y = y };
-                if (playfield.collides(piece.mask(), pos)) {
-                    collisions.put(piece, pos);
-                }
-            }
-        }
-    }
-
-    return collisions;
 }
 
 pub const MoveNode = struct {
@@ -185,20 +208,19 @@ pub fn orderMoves(
 
 test validMoves {
     const validFn = (struct {
-        pub fn valid(_: []const u16) bool {
+        pub fn valid(_: BoardMask, _: u6) bool {
             return true;
         }
     }).valid;
 
-    var game = GameState.init(SevenBag.init(0), engine.kicks.srs);
-    game.playfield.rows[4] |= 0b0000000000_0;
-    game.playfield.rows[3] |= 0b0111111110_0;
-    game.playfield.rows[2] |= 0b0010000000_0;
-    game.playfield.rows[1] |= 0b0000001000_0;
-    game.playfield.rows[0] |= 0b0000000001_0;
+    var playfield = BoardMask{};
+    playfield.mask |= @as(u64, 0b0111111110) << 30;
+    playfield.mask |= @as(u64, 0b0010000000) << 20;
+    playfield.mask |= @as(u64, 0b0000001000) << 10;
+    playfield.mask |= @as(u64, 0b0000000001);
 
     const PIECE = PieceKind.l;
-    const placements = validMoves(game, PIECE, 5, validFn);
+    const placements = validMoves(playfield, engine.kicks.srs, PIECE, 5, validFn);
 
     var iter = placements.iterator(PIECE);
     var count: usize = 0;

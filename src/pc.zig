@@ -5,25 +5,23 @@ const expect = std.testing.expect;
 
 const engine = @import("engine");
 const kicks = engine.kicks;
-const BoardMask = engine.bit_masks.BoardMask;
 const GameState = engine.GameState(SevenBag);
 const KickFn = engine.kicks.KickFn;
 const PieceKind = engine.pieces.PieceKind;
 const SevenBag = engine.bags.SevenBag;
 
 const root = @import("root.zig");
+const BoardMask = root.bit_masks.BoardMask;
 const Bot = root.neat.Bot;
+const Intermediate = root.movegen.Intermediate;
 const movegen = root.movegen;
 const NN = root.neat.NN;
+const PieceMask = root.bit_masks.PieceMask;
 const Placement = root.Placement;
 
-const SearchNode = struct {
-    // TODO: compress the boardmask
-    board: BoardMask,
-    // Needed to keep track of parity of holds
-    current: PieceKind,
-    // Needed to differentiate different states with same boards
-    max_height: u6,
+const SearchNode = packed struct {
+    board: u60,
+    depth: u4,
 };
 const NodeSet = std.AutoHashMap(SearchNode, void);
 
@@ -44,22 +42,18 @@ pub fn findPc(
     min_height: u6,
     comptime max_pieces: usize,
 ) ![]Placement {
+    const playfield = BoardMask.from(game.playfield);
+
     const field_height = blk: {
-        var i: usize = BoardMask.HEIGHT;
-        while (i >= 1) : (i -= 1) {
-            if (game.playfield.rows[i - 1] != BoardMask.EMPTY_ROW) {
+        var full_row: u64 = 0b1111111111 << ((BoardMask.HEIGHT - 1) * BoardMask.WIDTH);
+        while (full_row != 0) : (full_row >>= BoardMask.WIDTH) {
+            if (playfield.mask & full_row != 0) {
                 break;
             }
         }
-        break :blk i;
+        break :blk @ctz(full_row + 1) / 10;
     };
-    const bits_set = blk: {
-        var set: usize = 0;
-        for (0..field_height) |i| {
-            set += @popCount(game.playfield.rows[i] & ~BoardMask.EMPTY_ROW);
-        }
-        break :blk set;
-    };
+    const bits_set = @popCount(playfield.mask);
     const empty_cells = BoardMask.WIDTH * field_height - bits_set;
 
     // Assumes that all pieces have 4 cells and that the playfield is 10 cells wide.
@@ -95,7 +89,7 @@ pub fn findPc(
         cache.clearRetainingCapacity();
         if (try findPcInner(
             allocator,
-            game.playfield,
+            playfield,
             &pieces,
             placements,
             game.kicks,
@@ -158,9 +152,8 @@ fn findPcInner(
     }
 
     const node = SearchNode{
-        .board = playfield,
-        .current = pieces[0],
-        .max_height = max_height,
+        .board = @intCast(playfield.mask),
+        .depth = @intCast(placements.len - 1),
     };
     // TODO: WAS ~97% cache hit rate, consider optimising the cache
     if ((try cache.getOrPut(node)).found_existing) {
@@ -169,20 +162,15 @@ fn findPcInner(
 
     var moves = blk: {
         var moves = movegen.MoveQueue.init(allocator, {});
-        const game = GameState{
-            .playfield = playfield,
-            .kicks = kick_fn,
-            .bag = undefined,
-        };
 
-        const m1 = movegen.validMoves(game, pieces[0], max_height, isPcPossible);
+        const m1 = movegen.validMoves(playfield, kick_fn, pieces[0], max_height, isPcPossible);
         try movegen.orderMoves(&moves, playfield, pieces[0], m1, nn, orderScore);
         // Check for unique hold
         if (pieces.len < 2 or pieces[0] == pieces[1]) {
             break :blk moves;
         }
 
-        const m2 = movegen.validMoves(game, pieces[1], max_height, isPcPossible);
+        const m2 = movegen.validMoves(playfield, kick_fn, pieces[1], max_height, isPcPossible);
         try movegen.orderMoves(&moves, playfield, pieces[1], m2, nn, orderScore);
         break :blk moves;
     };
@@ -199,8 +187,7 @@ fn findPcInner(
         assert(pieces[0] == placement.piece.kind);
 
         var board = playfield;
-        board.place(placement.piece.mask(), placement.pos);
-        // TODO: Optimize clearLines
+        board.place(PieceMask.from(placement.piece), placement.pos);
         const cleared = board.clearLines(placement.pos.y);
 
         const new_height = max_height - cleared;
@@ -231,31 +218,35 @@ fn findPcInner(
 // TODO: Check performance benefit of using flood fill for more thorough checking
 /// A fast check to see if a perfect clear is possible by making sure every empty
 /// "segment" of the playfield has a multiple of 4 cells.
-fn isPcPossible(rows: []const u16) bool {
-    var walls = ~BoardMask.EMPTY_ROW;
-    for (rows) |row| {
+fn isPcPossible(playfield: BoardMask, max_height: u6) bool {
+    const FULL_ROW = (1 << BoardMask.WIDTH) - 1;
+
+    var walls: u64 = FULL_ROW;
+    for (0..max_height) |y| {
+        const row = playfield.mask >> @intCast(y * BoardMask.WIDTH) & FULL_ROW;
         walls &= row | (row << 1);
     }
-    walls &= walls ^ (walls >> 1); // Reduce consecutive walls to 1 wide walls
+    walls &= walls ^ (walls << 1); // Reduce consecutive walls to 1 wide walls
 
     while (walls != 0) {
-        const old_walls = walls;
-        walls &= walls - 1; // Clear lowest bit
-        // A mask of all the bits before the removed wall
-        const right_of_wall = (walls ^ old_walls) - 1;
+        // A mask of all the bits before the first wall
+        var right_of_wall = @as(u64, @bitCast(@as(i64, @bitCast(walls)) & -@as(i64, @bitCast(walls)))) - 1;
+        // Duplicate to all rows
+        for (@min(1, max_height)..max_height) |_| {
+            right_of_wall |= right_of_wall << BoardMask.WIDTH;
+        }
 
         // Each "segment" separated by a wall must have a multiple of 4 empty cells,
         // as pieces can only be placed in one segment (each piece occupies 4 cells).
-        var empty_count: u16 = 0;
-        for (rows) |row| {
-            // All of the other segments to the right are confirmed to have a
-            // multiple of 4 empty cells, so it doesn't matter if we count them again.
-            const segment = ~row & right_of_wall;
-            empty_count += @popCount(segment);
-        }
+        // All of the other segments to the right are confirmed to have a
+        // multiple of 4 empty cells, so it doesn't matter if we count them again.
+        const empty_count = @popCount(~playfield.mask & right_of_wall);
         if (empty_count % 4 != 0) {
             return false;
         }
+
+        // Clear lowest bit
+        walls &= walls - 1;
     }
 
     return true;
@@ -263,7 +254,7 @@ fn isPcPossible(rows: []const u16) bool {
 
 fn orderScore(playfield: BoardMask, placement: Placement, nn: NN) f32 {
     var board = playfield;
-    board.place(placement.piece.mask(), placement.pos);
+    board.place(PieceMask.from(placement.piece), placement.pos);
     _ = board.clearLines(placement.pos.y);
 
     const features = Bot.getFeatures(board, nn.inputs_used, 0, 0, 0);

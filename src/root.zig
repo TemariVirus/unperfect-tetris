@@ -1,3 +1,4 @@
+pub const bit_masks = @import("bit_masks.zig");
 pub const movegen = @import("movegen.zig");
 pub const neat = @import("neat.zig");
 pub const next = @import("next.zig");

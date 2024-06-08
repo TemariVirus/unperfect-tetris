@@ -5,9 +5,10 @@ const engine = @import("engine");
 const GameState = engine.GameState(SevenBag);
 const SevenBag = engine.bags.SevenBag;
 
-const pc = @import("pc.zig");
-const NN = @import("neat/NN.zig");
-const Bot = @import("neat/Bot.zig");
+const root = @import("root.zig");
+const Bot = root.neat.Bot;
+const NN = root.neat.NN;
+const pc = root.pc;
 
 pub fn main() !void {
     try pcBenchmark();
@@ -16,8 +17,8 @@ pub fn main() !void {
 
 // There are 241,315,200 possible 4-line PCs from an empty board with a 7-bag
 // randomiser, so creating a table of all of them is actually feasible.
-// Mean: 201.543ms
-// Max: 4.518s
+// Mean: 111.618ms
+// Max: 2.841s
 pub fn pcBenchmark() !void {
     const RUN_COUNT = 100;
 
@@ -59,7 +60,7 @@ pub fn pcBenchmark() !void {
     std.debug.print("Max: {}\n", .{std.fmt.fmtDuration(max_time)});
 }
 
-// Mean: 86ns
+// Mean: 43ns
 pub fn getFeaturesBenchmark() void {
     const RUN_COUNT = 100_000_000;
 
@@ -71,21 +72,22 @@ pub fn getFeaturesBenchmark() void {
         \\
     , .{});
 
-    // Randomly place 10 pieces
+    // Randomly place 3 pieces
     var xor = std.Random.Xoroshiro128.init(0);
     const rand = xor.random();
     var game = GameState.init(SevenBag.init(xor.next()), engine.kicks.srsPlus);
-    for (0..10) |_| {
+    for (0..3) |_| {
         game.current.facing = rand.enumValue(engine.pieces.Facing);
         game.pos.x = rand.intRangeAtMost(i8, game.current.minX(), game.current.maxX());
         _ = game.dropToGround();
         _ = game.lockCurrent(-1);
     }
+    const playfield = root.bit_masks.BoardMask.from(game.playfield);
 
     const start = time.nanoTimestamp();
     for (0..RUN_COUNT - 1) |_| {
         _ = Bot.getFeatures(
-            game.playfield,
+            playfield,
             .{ true, true, true, true, true },
             1,
             2.1,
@@ -93,7 +95,7 @@ pub fn getFeaturesBenchmark() void {
         );
     }
     const feat = Bot.getFeatures(
-        game.playfield,
+        playfield,
         .{ true, true, true, true, true },
         1,
         2.1,
