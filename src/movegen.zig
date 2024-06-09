@@ -118,7 +118,7 @@ pub fn allPlacements(
         const piece = Piece{ .facing = .up, .kind = piece_kind };
         const pos = Position{
             .x = 0,
-            .y = @as(i8, @intCast(max_height)) + piece.minY(),
+            .y = @as(i8, max_height) + piece.minY(),
         };
         stack.append(PiecePosition.pack(piece, pos)) catch unreachable;
     }

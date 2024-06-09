@@ -18,7 +18,7 @@ const NN = root.neat.NN;
 const pc = root.pc;
 const Placement = root.Placement;
 
-const FRAMERATE = 10;
+const FRAMERATE = 20;
 const FPS_TIMING_WINDOW = FRAMERATE * 2;
 const MAX_PC_QUEUE = 16;
 
@@ -121,7 +121,7 @@ fn placePcPiece(
 fn pcThread(allocator: Allocator, state: GameState, queue: *SolutionList) !void {
     var game = state;
 
-    const nn = try NN.load(allocator, "NNs/Fapae.json");
+    const nn = try NN.load(allocator, "NNs/Xesa.json");
     defer nn.deinit(allocator);
 
     while (true) {

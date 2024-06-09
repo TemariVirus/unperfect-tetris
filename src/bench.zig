@@ -15,8 +15,8 @@ pub fn main() !void {
     getFeaturesBenchmark();
 }
 
-// Mean: 92.059ms
-// Max: 2.231s
+// Mean: 86.168ms
+// Max: 2.275s
 pub fn pcBenchmark() !void {
     const RUN_COUNT = 100;
 
@@ -32,7 +32,7 @@ pub fn pcBenchmark() !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const nn = try NN.load(allocator, "NNs/Fapae.json");
+    const nn = try NN.load(allocator, "NNs/Xesa.json");
     defer nn.deinit(allocator);
 
     var total_time: u64 = 0;
