@@ -5,23 +5,18 @@ pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const exe = b.addExecutable(.{
-        .name = "perfect-tetris",
-        .root_source_file = lazyPath(b, "src/main.zig"),
-        .target = target,
-        .optimize = optimize,
-        .strip = optimize != .Debug,
-    });
-    b.installArtifact(exe);
-
     // Engine dependency
     const engine_module = b.dependency("engine", .{
         .target = target,
         .optimize = optimize,
     }).module("engine");
-    exe.root_module.addImport("engine", engine_module);
-
     const nterm_module = engine_module.import_table.get("nterm").?;
+
+    // zmai dependency
+    const zmai_module = b.dependency("zmai", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("zmai");
 
     // Add NN files
     const install_NNs = b.addInstallDirectory(.{
@@ -29,17 +24,38 @@ pub fn build(b: *Build) void {
         .install_dir = .bin,
         .install_subdir = "NNs",
     });
-    exe.step.dependOn(&install_NNs.step);
 
-    // Add run step
+    buildExe(b, target, optimize, engine_module, zmai_module, install_NNs);
+    buildDemo(b, target, optimize, engine_module, nterm_module, zmai_module, install_NNs);
+    buildTests(b, engine_module, zmai_module);
+    buildBench(b, target, engine_module, zmai_module, install_NNs);
+}
+
+fn buildExe(
+    b: *Build,
+    target: Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    engine_module: *Build.Module,
+    zmai_module: *Build.Module,
+    install_NNs: *Build.Step.InstallDir,
+) void {
+    const exe = b.addExecutable(.{
+        .name = "perfect-tetris",
+        .root_source_file = lazyPath(b, "src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .strip = optimize != .Debug,
+    });
+    exe.root_module.addImport("engine", engine_module);
+    exe.root_module.addImport("zmai", zmai_module);
+
+    exe.step.dependOn(&install_NNs.step);
+    b.installArtifact(exe);
+
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
-
-    buildDemo(b, target, optimize, engine_module, nterm_module, install_NNs);
-    buildTests(b, engine_module);
-    buildBench(b, target, engine_module);
 }
 
 fn buildDemo(
@@ -48,6 +64,7 @@ fn buildDemo(
     optimize: std.builtin.OptimizeMode,
     engine_module: *Build.Module,
     nterm_module: *Build.Module,
+    zmai_module: *Build.Module,
     install_NNs: *Build.Step.InstallDir,
 ) void {
     const demo_exe = b.addExecutable(.{
@@ -58,27 +75,32 @@ fn buildDemo(
     });
     demo_exe.root_module.addImport("engine", engine_module);
     demo_exe.root_module.addImport("nterm", nterm_module);
+    demo_exe.root_module.addImport("zmai", zmai_module);
 
+    demo_exe.step.dependOn(&install_NNs.step);
     b.installArtifact(demo_exe);
 
-    // Add demo step
     const run_cmd = b.addRunArtifact(demo_exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
     const run_step = b.step("demo", "Run the demo");
-    demo_exe.step.dependOn(&install_NNs.step);
     run_step.dependOn(&run_cmd.step);
 }
 
-fn buildTests(b: *Build, engine_module: *Build.Module) void {
+fn buildTests(
+    b: *Build,
+    engine_module: *Build.Module,
+    zmai_module: *Build.Module,
+) void {
     const lib_tests = b.addTest(.{
         .root_source_file = lazyPath(b, "src/root.zig"),
     });
     lib_tests.root_module.addImport("engine", engine_module);
-    const run_lib_tests = b.addRunArtifact(lib_tests);
+    lib_tests.root_module.addImport("zmai", zmai_module);
 
+    const run_lib_tests = b.addRunArtifact(lib_tests);
     const test_step = b.step("test", "Run library tests");
     test_step.dependOn(&run_lib_tests.step);
 }
@@ -87,6 +109,8 @@ fn buildBench(
     b: *Build,
     target: Build.ResolvedTarget,
     engine_module: *Build.Module,
+    zmai_module: *Build.Module,
+    install_NNs: *Build.Step.InstallDir,
 ) void {
     const bench_exe = b.addExecutable(.{
         .name = "Budget Tetris Bot Benchmarks",
@@ -95,8 +119,9 @@ fn buildBench(
         .optimize = .ReleaseFast,
     });
     bench_exe.root_module.addImport("engine", engine_module);
+    bench_exe.root_module.addImport("zmai", zmai_module);
 
-    b.installArtifact(bench_exe);
+    bench_exe.step.dependOn(&install_NNs.step);
 
     const bench_cmd = b.addRunArtifact(bench_exe);
     bench_cmd.step.dependOn(b.getInstallStep());

@@ -6,8 +6,7 @@ const GameState = engine.GameState(SevenBag);
 const SevenBag = engine.bags.SevenBag;
 
 const root = @import("root.zig");
-const Bot = root.neat.Bot;
-const NN = root.neat.NN;
+const NN = root.NN;
 const pc = root.pc;
 
 pub fn main() !void {
@@ -58,7 +57,7 @@ pub fn pcBenchmark() !void {
     std.debug.print("Max: {}\n", .{std.fmt.fmtDuration(max_time)});
 }
 
-// Mean: 42ns
+// Mean: 41ns
 pub fn getFeaturesBenchmark() void {
     const RUN_COUNT = 100_000_000;
 
@@ -84,21 +83,9 @@ pub fn getFeaturesBenchmark() void {
 
     const start = time.nanoTimestamp();
     for (0..RUN_COUNT - 1) |_| {
-        _ = Bot.getFeatures(
-            playfield,
-            .{ true, true, true, true, true },
-            1,
-            2.1,
-            -0.6,
-        );
+        _ = root.getFeatures(playfield, .{ true, true, true, true, true });
     }
-    const feat = Bot.getFeatures(
-        playfield,
-        .{ true, true, true, true, true },
-        1,
-        2.1,
-        -0.6,
-    );
+    const feat = root.getFeatures(playfield, .{ true, true, true, true, true });
     const time_taken: u64 = @intCast(time.nanoTimestamp() - start);
 
     // Use if statement to prevent compiler from running at compile time

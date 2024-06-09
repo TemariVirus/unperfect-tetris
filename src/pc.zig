@@ -12,9 +12,8 @@ const SevenBag = engine.bags.SevenBag;
 
 const root = @import("root.zig");
 const BoardMask = root.bit_masks.BoardMask;
-const Bot = root.neat.Bot;
 const movegen = root.movegen;
-const NN = root.neat.NN;
+const NN = root.NN;
 const PieceMask = root.bit_masks.PieceMask;
 const Placement = root.Placement;
 
@@ -271,8 +270,8 @@ fn isPcPossible(playfield: BoardMask, max_height: u3) bool {
 }
 
 fn orderScore(playfield: BoardMask, nn: NN) f32 {
-    const features = Bot.getFeatures(playfield, nn.inputs_used, 0, 0, 0);
-    return nn.predict(features)[0];
+    const features = root.getFeatures(playfield, nn.inputs_used);
+    return nn.predict(features);
 }
 
 test "4-line PC" {
@@ -280,7 +279,7 @@ test "4-line PC" {
 
     var gamestate = GameState.init(SevenBag.init(0), kicks.srsPlus);
 
-    const nn = try NN.load(allocator, "NNs/Fapae.json");
+    const nn = try NN.load(allocator, "NNs/Xesa.json");
     defer nn.deinit(allocator);
 
     const solution = try findPc(allocator, gamestate, nn, 0, 11);

@@ -5,9 +5,10 @@ const GameState = engine.GameState(SevenBag);
 const PieceKind = engine.pieces.PieceKind;
 const SevenBag = engine.bags.SevenBag;
 
-const next = @import("next.zig");
-const NN = @import("neat/NN.zig");
-const pc = @import("pc.zig");
+const root = @import("root.zig");
+const next = root.next;
+const NN = root.NN;
+const pc = root.pc;
 
 const MAX_HEIGHT = 4;
 const NEXT_LEN = MAX_HEIGHT * 5 / 2;

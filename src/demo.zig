@@ -14,7 +14,7 @@ const nterm = @import("nterm");
 const View = nterm.View;
 
 const root = @import("root.zig");
-const NN = root.neat.NN;
+const NN = root.NN;
 const pc = root.pc;
 const Placement = root.Placement;
 

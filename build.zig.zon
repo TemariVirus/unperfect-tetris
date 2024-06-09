@@ -6,8 +6,17 @@
             .url = "https://github.com/TemariVirus/Budget-Tetris-Engine/archive/c2cb87a8c73c3a2284cc6185c2dbf74f58a6d3c0.tar.gz",
             .hash = "1220f8c45a9085221a07fa447254503b4363cf816ae2b37c1fe6c52eb51bbca2472c",
         },
+        .zmai = .{
+            .url = "https://github.com/TemariVirus/zmai/archive/c48614f0b17765439e049ea0956b56711c5bb265.tar.gz",
+            .hash = "122042b00a1a4e69c3ea7b8d66dcdf6e6f8ad4a73d688f63787ffde68cafeacb7106",
+        },
     },
     .paths = .{
-        "",
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "NNs",
+        "LICENSE",
+        "README.md",
     },
 }
