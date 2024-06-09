@@ -4,8 +4,6 @@ const expect = std.testing.expect;
 const root = @import("../root.zig");
 const BoardMask = root.bit_masks.BoardMask;
 
-const LEGACY_HEIGHT = 24;
-
 // TODO: Optimise with SIMD
 // TODO: Optimize with max height
 pub fn getFeatures(

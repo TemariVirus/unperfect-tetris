@@ -19,7 +19,6 @@ const Placement = root.Placement;
 
 const PlacementStack = std.BoundedArray(PiecePosition, 240);
 
-// TODO: Make iterate through enum fields instead of hardcoding an array
 const Move = enum {
     left,
     right,
@@ -28,13 +27,12 @@ const Move = enum {
     rotate_ccw,
     drop,
 
-    const moves = [_]Move{
-        .left,
-        .right,
-        .rotate_cw,
-        .rotate_double,
-        .rotate_ccw,
-        .drop,
+    const moves = blk: {
+        var m = [_]Move{undefined} ** @typeInfo(Move).Enum.fields.len;
+        for (@typeInfo(Move).Enum.fields, 0..) |field, i| {
+            m[i] = @enumFromInt(field.value);
+        }
+        break :blk m;
     };
 };
 
@@ -105,13 +103,12 @@ pub const Intermediate = struct {
 };
 
 /// Returns the set of all placements where the top of the piece does not
-/// exceed `max_height` and `validFn` returns true.
-pub fn validMoves(
+/// exceed `max_height`.
+pub fn allPlacements(
     playfield: BoardMask,
     kicks: *const KickFn,
     piece_kind: PieceKind,
-    max_height: u6,
-    comptime validFn: fn (BoardMask, u6) bool,
+    max_height: u3,
 ) PiecePosSet {
     var seen = PiecePosSet.init();
     var placements = PiecePosSet.init();
@@ -157,17 +154,10 @@ pub fn validMoves(
                 PiecePosition.pack(new_game.current, new_game.pos),
             ) catch unreachable;
 
-            // Skip this placement if the piece is too, or if it's not on the ground
+            // Skip this placement if the piece is too high, or if it's not on the ground
             if (new_game.pos.y + @as(i8, new_game.current.top()) > max_height or
                 !new_game.onGround())
             {
-                continue;
-            }
-
-            new_game.playfield.place(PieceMask.from(new_game.current), new_game.pos);
-            const cleared = new_game.playfield.clearLines(new_game.pos.y);
-            const new_height = max_height - cleared;
-            if (!validFn(new_game.playfield, new_height)) {
                 continue;
             }
 
@@ -194,25 +184,29 @@ pub fn orderMoves(
     playfield: BoardMask,
     piece: PieceKind,
     moves: PiecePosSet,
+    max_height: u3,
+    comptime validFn: fn (BoardMask, u3) bool,
     score_args: anytype,
-    comptime scoreFn: fn (BoardMask, Placement, @TypeOf(score_args)) f32,
+    comptime scoreFn: fn (BoardMask, @TypeOf(score_args)) f32,
 ) !void {
     var iter = moves.iterator(piece);
     while (iter.next()) |placement| {
+        var board = playfield;
+        board.place(PieceMask.from(placement.piece), placement.pos);
+        const cleared = board.clearLines(placement.pos.y);
+        const new_height = max_height - cleared;
+        if (!validFn(board, new_height)) {
+            continue;
+        }
+
         try queue.add(.{
             .placement = placement,
-            .score = scoreFn(playfield, placement, score_args),
+            .score = scoreFn(board, score_args),
         });
     }
 }
 
-test validMoves {
-    const validFn = (struct {
-        pub fn valid(_: BoardMask, _: u6) bool {
-            return true;
-        }
-    }).valid;
-
+test allPlacements {
     var playfield = BoardMask{};
     playfield.mask |= @as(u64, 0b0111111110) << 30;
     playfield.mask |= @as(u64, 0b0010000000) << 20;
@@ -220,7 +214,7 @@ test validMoves {
     playfield.mask |= @as(u64, 0b0000000001);
 
     const PIECE = PieceKind.l;
-    const placements = validMoves(playfield, engine.kicks.srs, PIECE, 5, validFn);
+    const placements = allPlacements(playfield, engine.kicks.srs, PIECE, 5);
 
     var iter = placements.iterator(PIECE);
     var count: usize = 0;

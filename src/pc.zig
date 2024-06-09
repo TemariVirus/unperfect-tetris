@@ -39,7 +39,7 @@ pub fn findPc(
     allocator: Allocator,
     game: GameState,
     nn: NN,
-    min_height: u6,
+    min_height: u3,
     comptime max_pieces: usize,
 ) ![]Placement {
     const playfield = BoardMask.from(game.playfield);
@@ -86,11 +86,22 @@ pub fn findPc(
         const placements = try allocator.alloc(Placement, pieces_needed);
         errdefer allocator.free(placements);
 
+        const queues = try allocator.alloc(movegen.MoveQueue, pieces_needed);
+        for (0..queues.len) |i| {
+            queues[i] = movegen.MoveQueue.init(allocator, {});
+        }
+        defer {
+            for (queues) |queue| {
+                queue.deinit();
+            }
+            allocator.free(queues);
+        }
+
         cache.clearRetainingCapacity();
         if (try findPcInner(
-            allocator,
             playfield,
             &pieces,
+            queues,
             placements,
             game.kicks,
             &cache,
@@ -137,14 +148,14 @@ fn getPieces(game: GameState, comptime pieces_count: usize) [pieces_count]PieceK
 }
 
 fn findPcInner(
-    allocator: Allocator,
     playfield: BoardMask,
     pieces: []PieceKind,
+    queues: []movegen.MoveQueue,
     placements: []Placement,
     kick_fn: *const KickFn,
     cache: *NodeSet,
     nn: NN,
-    max_height: u6,
+    max_height: u3,
 ) !bool {
     // Base case; check for perfect clear
     if (placements.len == 0) {
@@ -160,24 +171,18 @@ fn findPcInner(
         return false;
     }
 
-    var moves = blk: {
-        var moves = movegen.MoveQueue.init(allocator, {});
-
-        const m1 = movegen.validMoves(playfield, kick_fn, pieces[0], max_height, isPcPossible);
-        try movegen.orderMoves(&moves, playfield, pieces[0], m1, nn, orderScore);
-        // Check for unique hold
-        if (pieces.len < 2 or pieces[0] == pieces[1]) {
-            break :blk moves;
-        }
-
-        const m2 = movegen.validMoves(playfield, kick_fn, pieces[1], max_height, isPcPossible);
-        try movegen.orderMoves(&moves, playfield, pieces[1], m2, nn, orderScore);
-        break :blk moves;
-    };
-    defer moves.deinit();
+    // Add moves to queue;
+    queues[0].len = 0;
+    const m1 = movegen.allPlacements(playfield, kick_fn, pieces[0], max_height);
+    try movegen.orderMoves(&queues[0], playfield, pieces[0], m1, max_height, isPcPossible, nn, orderScore);
+    // Check for unique hold
+    if (pieces.len > 1 and pieces[0] != pieces[1]) {
+        const m2 = movegen.allPlacements(playfield, kick_fn, pieces[1], max_height);
+        try movegen.orderMoves(&queues[0], playfield, pieces[1], m2, max_height, isPcPossible, nn, orderScore);
+    }
 
     var held_odd_times = false;
-    while (moves.removeOrNull()) |move| {
+    while (queues[0].removeOrNull()) |move| {
         const placement = move.placement;
         // Hold if needed
         if (placement.piece.kind != pieces[0]) {
@@ -192,9 +197,9 @@ fn findPcInner(
 
         const new_height = max_height - cleared;
         if (try findPcInner(
-            allocator,
             board,
             pieces[1..],
+            queues[1..],
             placements[1..],
             kick_fn,
             cache,
@@ -218,15 +223,15 @@ fn findPcInner(
 // TODO: Check performance benefit of using flood fill for more thorough checking
 /// A fast check to see if a perfect clear is possible by making sure every empty
 /// "segment" of the playfield has a multiple of 4 cells.
-fn isPcPossible(playfield: BoardMask, max_height: u6) bool {
-    const FULL_ROW = (1 << BoardMask.WIDTH) - 1;
-
-    var walls: u64 = FULL_ROW;
+fn isPcPossible(playfield: BoardMask, max_height: u3) bool {
+    var walls: u64 = (1 << BoardMask.WIDTH) - 1;
     for (0..max_height) |y| {
-        const row = playfield.mask >> @intCast(y * BoardMask.WIDTH) & FULL_ROW;
+        const row = playfield.row(@intCast(y));
         walls &= row | (row << 1);
     }
-    walls &= walls ^ (walls << 1); // Reduce consecutive walls to 1 wide walls
+    walls &= walls ^ (walls << 1); // Reduce consecutive walls to 1 wide
+    // walls &= walls ^ (walls >> 1); // Reduce consecutive walls to 1 wide (left edge)
+    // walls |= 1 << 10; // Add wall at the left edge
 
     while (walls != 0) {
         // A mask of all the bits before the first wall
@@ -252,12 +257,8 @@ fn isPcPossible(playfield: BoardMask, max_height: u6) bool {
     return true;
 }
 
-fn orderScore(playfield: BoardMask, placement: Placement, nn: NN) f32 {
-    var board = playfield;
-    board.place(PieceMask.from(placement.piece), placement.pos);
-    _ = board.clearLines(placement.pos.y);
-
-    const features = Bot.getFeatures(board, nn.inputs_used, 0, 0, 0);
+fn orderScore(playfield: BoardMask, nn: NN) f32 {
+    const features = Bot.getFeatures(playfield, nn.inputs_used, 0, 0, 0);
     return nn.predict(features)[0];
 }
 
@@ -283,4 +284,56 @@ test "4-line PC" {
     gamestate.current = solution[solution.len - 1].piece;
     gamestate.pos = solution[solution.len - 1].pos;
     try expect(gamestate.lockCurrent(-1).pc);
+}
+
+test isPcPossible {
+    var playfield = BoardMask{};
+    playfield.mask |= @as(u64, 0b0111111110) << 30;
+    playfield.mask |= @as(u64, 0b0010000000) << 20;
+    playfield.mask |= @as(u64, 0b0000001000) << 10;
+    playfield.mask |= @as(u64, 0b0000001001);
+    try expect(isPcPossible(playfield, 4));
+
+    playfield = BoardMask{};
+    playfield.mask |= @as(u64, 0b0000000000) << 30;
+    playfield.mask |= @as(u64, 0b0010011000) << 20;
+    playfield.mask |= @as(u64, 0b0000011000) << 10;
+    playfield.mask |= @as(u64, 0b0000011001);
+    try expect(isPcPossible(playfield, 4));
+
+    playfield = BoardMask{};
+    playfield.mask |= @as(u64, 0b0010011000) << 20;
+    playfield.mask |= @as(u64, 0b0000011000) << 10;
+    playfield.mask |= @as(u64, 0b0000011001);
+    try expect(!isPcPossible(playfield, 3));
+
+    playfield = BoardMask{};
+    playfield.mask |= @as(u64, 0b0010010000) << 20;
+    playfield.mask |= @as(u64, 0b0000001000) << 10;
+    playfield.mask |= @as(u64, 0b0000001011);
+    try expect(isPcPossible(playfield, 3));
+
+    playfield = BoardMask{};
+    playfield.mask |= @as(u64, 0b0100010000) << 20;
+    playfield.mask |= @as(u64, 0b0010001000) << 10;
+    playfield.mask |= @as(u64, 0b0100001011);
+    try expect(!isPcPossible(playfield, 3));
+
+    playfield = BoardMask{};
+    playfield.mask |= @as(u64, 0b0100010000) << 20;
+    playfield.mask |= @as(u64, 0b0010011000) << 10;
+    playfield.mask |= @as(u64, 0b0100011011);
+    try expect(isPcPossible(playfield, 3));
+
+    playfield = BoardMask{};
+    playfield.mask |= @as(u64, 0b0100111000) << 20;
+    playfield.mask |= @as(u64, 0b0011011100) << 10;
+    playfield.mask |= @as(u64, 0b0100111000);
+    try expect(isPcPossible(playfield, 3));
+
+    playfield = BoardMask{};
+    playfield.mask |= @as(u64, 0b0100111000) << 20;
+    playfield.mask |= @as(u64, 0b0011111100) << 10;
+    playfield.mask |= @as(u64, 0b0100111000);
+    try expect(isPcPossible(playfield, 3));
 }
