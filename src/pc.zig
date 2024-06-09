@@ -222,7 +222,8 @@ fn findPcInner(
 // is high (maybe around 6 to 7)
 // TODO: Check performance benefit of using flood fill for more thorough checking
 /// A fast check to see if a perfect clear is possible by making sure every empty
-/// "segment" of the playfield has a multiple of 4 cells.
+/// "segment" of the playfield has a multiple of 4 cells. Assumes the total number
+/// of empty cells is a multiple of 4.
 fn isPcPossible(playfield: BoardMask, max_height: u3) bool {
     var walls: u64 = (1 << BoardMask.WIDTH) - 1;
     for (0..max_height) |y| {
@@ -230,8 +231,6 @@ fn isPcPossible(playfield: BoardMask, max_height: u3) bool {
         walls &= row | (row << 1);
     }
     walls &= walls ^ (walls << 1); // Reduce consecutive walls to 1 wide
-    // walls &= walls ^ (walls >> 1); // Reduce consecutive walls to 1 wide (left edge)
-    // walls |= 1 << 10; // Add wall at the left edge
 
     while (walls != 0) {
         // A mask of all the bits before the first wall
@@ -254,6 +253,8 @@ fn isPcPossible(playfield: BoardMask, max_height: u3) bool {
         walls &= walls - 1;
     }
 
+    // The remaining empty cells must also be a multiple of 4, so we don't need to
+    // check the leftmost segment
     return true;
 }
 
@@ -302,9 +303,9 @@ test isPcPossible {
     try expect(isPcPossible(playfield, 4));
 
     playfield = BoardMask{};
-    playfield.mask |= @as(u64, 0b0010011000) << 20;
+    playfield.mask |= @as(u64, 0b0010011100) << 20;
     playfield.mask |= @as(u64, 0b0000011000) << 10;
-    playfield.mask |= @as(u64, 0b0000011001);
+    playfield.mask |= @as(u64, 0b0000011011);
     try expect(!isPcPossible(playfield, 3));
 
     playfield = BoardMask{};
@@ -314,9 +315,9 @@ test isPcPossible {
     try expect(isPcPossible(playfield, 3));
 
     playfield = BoardMask{};
-    playfield.mask |= @as(u64, 0b0100010000) << 20;
+    playfield.mask |= @as(u64, 0b0100011100) << 20;
     playfield.mask |= @as(u64, 0b0010001000) << 10;
-    playfield.mask |= @as(u64, 0b0100001011);
+    playfield.mask |= @as(u64, 0b0111111011);
     try expect(!isPcPossible(playfield, 3));
 
     playfield = BoardMask{};
@@ -328,8 +329,8 @@ test isPcPossible {
     playfield = BoardMask{};
     playfield.mask |= @as(u64, 0b0100111000) << 20;
     playfield.mask |= @as(u64, 0b0011011100) << 10;
-    playfield.mask |= @as(u64, 0b0100111000);
-    try expect(isPcPossible(playfield, 3));
+    playfield.mask |= @as(u64, 0b1100111000);
+    try expect(!isPcPossible(playfield, 3));
 
     playfield = BoardMask{};
     playfield.mask |= @as(u64, 0b0100111000) << 20;
