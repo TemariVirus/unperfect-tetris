@@ -7,7 +7,7 @@ pub fn build(b: *Build) void {
 
     const exe = b.addExecutable(.{
         .name = "perfect-tetris",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = lazyPath(b, "src/main.zig"),
         .target = target,
         .optimize = optimize,
         .strip = optimize != .Debug,
@@ -25,7 +25,7 @@ pub fn build(b: *Build) void {
 
     // Add NN files
     const install_NNs = b.addInstallDirectory(.{
-        .source_dir = .{ .path = "NNs" },
+        .source_dir = lazyPath(b, "NNs"),
         .install_dir = .bin,
         .install_subdir = "NNs",
     });
@@ -52,7 +52,7 @@ fn buildDemo(
 ) void {
     const demo_exe = b.addExecutable(.{
         .name = "perfect-tetris-demo",
-        .root_source_file = .{ .path = "src/demo.zig" },
+        .root_source_file = lazyPath(b, "src/demo.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -74,7 +74,7 @@ fn buildDemo(
 
 fn buildTests(b: *Build, engine_module: *Build.Module) void {
     const lib_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/root.zig" },
+        .root_source_file = lazyPath(b, "src/root.zig"),
     });
     lib_tests.root_module.addImport("engine", engine_module);
     const run_lib_tests = b.addRunArtifact(lib_tests);
@@ -90,7 +90,7 @@ fn buildBench(
 ) void {
     const bench_exe = b.addExecutable(.{
         .name = "Budget Tetris Bot Benchmarks",
-        .root_source_file = .{ .path = "src/bench.zig" },
+        .root_source_file = lazyPath(b, "src/bench.zig"),
         .target = target,
         .optimize = .ReleaseFast,
     });
@@ -105,4 +105,13 @@ fn buildBench(
     }
     const bench_step = b.step("bench", "Run benchmarks");
     bench_step.dependOn(&bench_cmd.step);
+}
+
+fn lazyPath(b: *Build, path: []const u8) Build.LazyPath {
+    return .{
+        .src_path = .{
+            .owner = b,
+            .sub_path = path,
+        },
+    };
 }

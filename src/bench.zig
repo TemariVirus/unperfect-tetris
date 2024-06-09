@@ -15,10 +15,8 @@ pub fn main() !void {
     getFeaturesBenchmark();
 }
 
-// There are 241,315,200 possible 4-line PCs from an empty board with a 7-bag
-// randomiser, so creating a table of all of them is actually feasible.
-// Mean: 90.64ms
-// Max: 2.2s
+// Mean: 92.059ms
+// Max: 2.231s
 pub fn pcBenchmark() !void {
     const RUN_COUNT = 100;
 
@@ -60,7 +58,7 @@ pub fn pcBenchmark() !void {
     std.debug.print("Max: {}\n", .{std.fmt.fmtDuration(max_time)});
 }
 
-// Mean: 43ns
+// Mean: 42ns
 pub fn getFeaturesBenchmark() void {
     const RUN_COUNT = 100_000_000;
 

@@ -170,7 +170,7 @@ fn findPcInner(
     }
 
     // Add moves to queue
-    queues[0].len = 0;
+    queues[0].items.len = 0;
     const m1 = movegen.allPlacements(playfield, kick_fn, pieces[0], max_height);
     try movegen.orderMoves(
         &queues[0],
