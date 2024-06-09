@@ -4,8 +4,7 @@ const expect = std.testing.expect;
 const root = @import("../root.zig");
 const BoardMask = root.bit_masks.BoardMask;
 
-// TODO: Optimise with SIMD
-// TODO: Optimize with max height
+// TODO: Optimise with SIMD?
 pub fn getFeatures(
     playfield: BoardMask,
     inputs_used: [5]bool,

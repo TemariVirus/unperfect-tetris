@@ -13,7 +13,6 @@ const SevenBag = engine.bags.SevenBag;
 const root = @import("root.zig");
 const BoardMask = root.bit_masks.BoardMask;
 const Bot = root.neat.Bot;
-const Intermediate = root.movegen.Intermediate;
 const movegen = root.movegen;
 const NN = root.neat.NN;
 const PieceMask = root.bit_masks.PieceMask;
@@ -163,22 +162,39 @@ fn findPcInner(
     }
 
     const node = SearchNode{
-        .board = @intCast(playfield.mask),
+        .board = @truncate(playfield.mask),
         .depth = @intCast(placements.len - 1),
     };
-    // TODO: WAS ~97% cache hit rate, consider optimising the cache
     if ((try cache.getOrPut(node)).found_existing) {
         return false;
     }
 
-    // Add moves to queue;
+    // Add moves to queue
     queues[0].len = 0;
     const m1 = movegen.allPlacements(playfield, kick_fn, pieces[0], max_height);
-    try movegen.orderMoves(&queues[0], playfield, pieces[0], m1, max_height, isPcPossible, nn, orderScore);
+    try movegen.orderMoves(
+        &queues[0],
+        playfield,
+        pieces[0],
+        m1,
+        max_height,
+        isPcPossible,
+        nn,
+        orderScore,
+    );
     // Check for unique hold
     if (pieces.len > 1 and pieces[0] != pieces[1]) {
         const m2 = movegen.allPlacements(playfield, kick_fn, pieces[1], max_height);
-        try movegen.orderMoves(&queues[0], playfield, pieces[1], m2, max_height, isPcPossible, nn, orderScore);
+        try movegen.orderMoves(
+            &queues[0],
+            playfield,
+            pieces[1],
+            m2,
+            max_height,
+            isPcPossible,
+            nn,
+            orderScore,
+        );
     }
 
     var held_odd_times = false;
@@ -218,10 +234,6 @@ fn findPcInner(
     return false;
 }
 
-// TODO: Check against dictionary of possible PCs if the remaining peice count
-// is high (maybe around 6 to 7)
-// TODO: Check performance benefit of using flood fill for more thorough checking
-/// A fast check to see if a perfect clear is possible by making sure every empty
 /// "segment" of the playfield has a multiple of 4 cells. Assumes the total number
 /// of empty cells is a multiple of 4.
 fn isPcPossible(playfield: BoardMask, max_height: u3) bool {
@@ -234,7 +246,7 @@ fn isPcPossible(playfield: BoardMask, max_height: u3) bool {
 
     while (walls != 0) {
         // A mask of all the bits before the first wall
-        var right_of_wall = @as(u64, @bitCast(@as(i64, @bitCast(walls)) & -@as(i64, @bitCast(walls)))) - 1;
+        var right_of_wall = root.bit_masks.lsb(walls) - 1;
         // Duplicate to all rows
         for (@min(1, max_height)..max_height) |_| {
             right_of_wall |= right_of_wall << BoardMask.WIDTH;

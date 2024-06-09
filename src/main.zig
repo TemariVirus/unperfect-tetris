@@ -1,5 +1,4 @@
 const std = @import("std");
-const assert = std.debug.assert;
 
 const engine = @import("engine");
 const GameState = engine.GameState(SevenBag);

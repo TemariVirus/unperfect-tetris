@@ -11,7 +11,6 @@ const Rotation = engine.kicks.Rotation;
 
 const root = @import("root.zig");
 const BoardMask = root.bit_masks.BoardMask;
-const NN = root.neat.NN;
 pub const PiecePosition = root.PiecePosition;
 const PiecePosSet = root.PiecePosSet(.{ 10, 10, 4 });
 const PieceMask = root.bit_masks.PieceMask;
@@ -48,13 +47,13 @@ pub const Intermediate = struct {
                 if (self.pos.x <= self.current.minX()) {
                     break :blk false;
                 }
-                break :blk self.tryTranspose(Position{ .x = self.pos.x - 1, .y = self.pos.y });
+                break :blk self.tryTranspose(.{ .x = self.pos.x - 1, .y = self.pos.y });
             },
             .right => blk: {
                 if (self.pos.x >= self.current.maxX()) {
                     break :blk false;
                 }
-                break :blk self.tryTranspose(Position{ .x = self.pos.x + 1, .y = self.pos.y });
+                break :blk self.tryTranspose(.{ .x = self.pos.x + 1, .y = self.pos.y });
             },
             .rotate_cw => self.tryRotate(.quarter_cw),
             .rotate_double => self.tryRotate(.half),
@@ -63,7 +62,7 @@ pub const Intermediate = struct {
                 if (self.pos.y <= self.current.minY()) {
                     break :blk false;
                 }
-                break :blk self.tryTranspose(Position{ .x = self.pos.x, .y = self.pos.y - 1 });
+                break :blk self.tryTranspose(.{ .x = self.pos.x, .y = self.pos.y - 1 });
             },
         };
     }

@@ -3,7 +3,9 @@ const assert = std.debug.assert;
 
 const engine = @import("engine");
 const BoardMaskEngine = engine.bit_masks.BoardMask;
+const Facing = engine.pieces.Facing;
 const Piece = engine.pieces.Piece;
+const PieceKind = engine.pieces.PieceKind;
 const PieceMaskEngine = engine.bit_masks.PieceMask;
 const Position = engine.pieces.Position;
 
@@ -20,7 +22,10 @@ pub const BoardMask = struct {
     pub fn from(board_mask: BoardMaskEngine) BoardMask {
         var mask: u64 = 0;
         for (0..6) |y| {
-            mask |= @as(u64, board_mask.rows[y] & ~BoardMaskEngine.EMPTY_ROW) << @intCast(y * 10) >> 1;
+            mask |= @as(
+                u64,
+                board_mask.rows[y] & ~BoardMaskEngine.EMPTY_ROW,
+            ) << @intCast(y * 10) >> 1;
         }
         for (6..BoardMaskEngine.HEIGHT) |y| {
             assert(board_mask.rows[y] == BoardMaskEngine.EMPTY_ROW);
@@ -60,7 +65,6 @@ pub const BoardMask = struct {
     /// Clears all filled lines in the playfield.
     /// Returns the number of lines cleared.
     pub fn clearLines(self: *BoardMask, y: i8) u3 {
-        // TODO: check performance of storing clears as chunks
         var cleared: u3 = 0;
         var i: usize = @max(0, y);
         var full_row = (@as(u64, 1) << BoardMask.WIDTH) - 1;
@@ -68,7 +72,7 @@ pub const BoardMask = struct {
         while (i + cleared < HEIGHT) {
             if (self.mask & full_row == full_row) {
                 cleared += 1;
-                const bottom_mask = @as(u64, @bitCast(@as(i64, @bitCast(full_row)) & -@as(i64, @bitCast(full_row)))) - 1;
+                const bottom_mask = lsb(full_row) - 1;
                 const bottom = self.mask & bottom_mask;
                 const top = (self.mask >> WIDTH) & ~bottom_mask;
                 self.mask = top | bottom;
@@ -108,14 +112,13 @@ pub const PieceMask = struct {
         return .{ .mask = mask };
     }
 
-    // TODO: iterate through enum fields instead of hardcoded values
     fn makeAttributeTable(comptime T: type, comptime attribute: fn (Piece) T) [28]T {
         var table: [28]T = undefined;
-        for (0..7) |piece_kind| {
-            for (0..4) |facing| {
+        for (@typeInfo(PieceKind).Enum.fields) |p| {
+            for (@typeInfo(Facing).Enum.fields) |f| {
                 const piece = Piece{
-                    .facing = @enumFromInt(facing),
-                    .kind = @enumFromInt(piece_kind),
+                    .facing = @enumFromInt(f.value),
+                    .kind = @enumFromInt(p.value),
                 };
                 table[@as(u5, @bitCast(piece))] = attribute(piece);
             }
@@ -123,3 +126,8 @@ pub const PieceMask = struct {
         return table;
     }
 };
+
+/// Returns a mask containing only the least significant bit of x.
+pub fn lsb(x: u64) u64 {
+    return @as(u64, @bitCast(@as(i64, @bitCast(x)) & -@as(i64, @bitCast(x))));
+}
