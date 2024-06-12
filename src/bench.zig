@@ -82,20 +82,12 @@ pub fn getFeaturesBenchmark() void {
     const playfield = root.bit_masks.BoardMask.from(game.playfield);
 
     const start = time.nanoTimestamp();
-    for (0..RUN_COUNT - 1) |_| {
-        _ = root.getFeatures(playfield, .{ true, true, true, true, true });
+    for (0..RUN_COUNT) |_| {
+        std.mem.doNotOptimizeAway(
+            root.getFeatures(playfield, .{ true, true, true, true, true }),
+        );
     }
-    const feat = root.getFeatures(playfield, .{ true, true, true, true, true });
     const time_taken: u64 = @intCast(time.nanoTimestamp() - start);
-
-    // Use if statement to prevent compiler from running at compile time
-    var accum: f32 = 0;
-    accum += feat[0];
-    accum += feat[1];
-    accum += feat[2];
-    accum += feat[3];
-    accum += feat[4];
-    std.debug.print("{s}", .{if (accum == 0) "a" else ""});
 
     std.debug.print("Mean: {}\n", .{std.fmt.fmtDuration(time_taken / RUN_COUNT)});
 }

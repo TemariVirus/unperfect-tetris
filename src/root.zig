@@ -15,7 +15,7 @@ const Piece = engine.pieces.Piece;
 const PieceKind = engine.pieces.PieceKind;
 const Position = engine.pieces.Position;
 
-const NNInner = @import("zmai").genetic.neat.FastNN;
+const NNInner = @import("zmai").genetic.neat.NN;
 
 pub const Placement = struct {
     piece: Piece,
