@@ -279,7 +279,7 @@ test "4-line PC" {
 
     var gamestate = GameState.init(SevenBag.init(0), kicks.srsPlus);
 
-    const nn = try NN.load(allocator, "NNs/Xesa.json");
+    const nn = try NN.load(allocator, "NNs/Fast.json");
     defer nn.deinit(allocator);
 
     const solution = try findPc(allocator, gamestate, nn, 0, 11);

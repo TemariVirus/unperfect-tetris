@@ -29,6 +29,7 @@ pub fn build(b: *Build) void {
     buildDemo(b, target, optimize, engine_module, nterm_module, zmai_module, install_NNs);
     buildTests(b, engine_module, zmai_module);
     buildBench(b, target, engine_module, zmai_module, install_NNs);
+    buildTrain(b, target, optimize, engine_module, zmai_module);
 }
 
 fn buildExe(
@@ -68,7 +69,7 @@ fn buildDemo(
     install_NNs: *Build.Step.InstallDir,
 ) void {
     const demo_exe = b.addExecutable(.{
-        .name = "perfect-tetris-demo",
+        .name = "demo",
         .root_source_file = lazyPath(b, "src/demo.zig"),
         .target = target,
         .optimize = optimize,
@@ -113,7 +114,7 @@ fn buildBench(
     install_NNs: *Build.Step.InstallDir,
 ) void {
     const bench_exe = b.addExecutable(.{
-        .name = "Budget Tetris Bot Benchmarks",
+        .name = "benchmarks",
         .root_source_file = lazyPath(b, "src/bench.zig"),
         .target = target,
         .optimize = .ReleaseFast,
@@ -130,6 +131,31 @@ fn buildBench(
     }
     const bench_step = b.step("bench", "Run benchmarks");
     bench_step.dependOn(&bench_cmd.step);
+}
+
+fn buildTrain(
+    b: *Build,
+    target: Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    engine_module: *Build.Module,
+    zmai_module: *Build.Module,
+) void {
+    const train_exe = b.addExecutable(.{
+        .name = "nn-train",
+        .root_source_file = lazyPath(b, "src/train.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    train_exe.root_module.addImport("engine", engine_module);
+    train_exe.root_module.addImport("zmai", zmai_module);
+
+    const train_cmd = b.addRunArtifact(train_exe);
+    train_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        train_cmd.addArgs(args);
+    }
+    const train_step = b.step("train", "Train neural networks");
+    train_step.dependOn(&train_cmd.step);
 }
 
 fn lazyPath(b: *Build, path: []const u8) Build.LazyPath {

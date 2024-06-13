@@ -1,0 +1,66 @@
+{
+    "options": {
+        "input_count": 5,
+        "output_count": 1,
+        "hidden_activation": "relu",
+        "output_activation": "identity"
+    },
+    "genome": {
+        "genes": [
+            {
+                "input": 0,
+                "output": 6,
+                "weight": 1.6928906440734863,
+                "enabled": true
+            },
+            {
+                "input": 1,
+                "output": 6,
+                "weight": -0.640637993812561,
+                "enabled": true
+            },
+            {
+                "input": 2,
+                "output": 6,
+                "weight": -0.3170772194862366,
+                "enabled": true
+            },
+            {
+                "input": 3,
+                "output": 6,
+                "weight": -1.7601792812347412,
+                "enabled": true
+            },
+            {
+                "input": 4,
+                "output": 6,
+                "weight": 1.2214444875717163,
+                "enabled": false
+            },
+            {
+                "input": 5,
+                "output": 6,
+                "weight": -2.2435197830200195,
+                "enabled": false
+            },
+            {
+                "input": 2,
+                "output": 7,
+                "weight": -0.2639724016189575,
+                "enabled": true
+            },
+            {
+                "input": 7,
+                "output": 6,
+                "weight": 1.0556203126907349,
+                "enabled": true
+            },
+            {
+                "input": 4,
+                "output": 2,
+                "weight": -0.23555760085582733,
+                "enabled": false
+            }
+        ]
+    }
+}
