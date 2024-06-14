@@ -1,6 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const AtomicBool = std.atomic.Value(bool);
+const AtomicBool = std.atomic.Value(i32);
 const fs = std.fs;
 const json = std.json;
 const Mutex = std.Thread.Mutex;
@@ -21,7 +21,9 @@ const NN = root.NN;
 const pc = root.pc;
 
 const THREADS = 4;
+const SAVE_INTERVAL = 10 * time.ns_per_s;
 const SAVE_DIR = "pops/";
+
 const GENERATIONS = 20;
 const POPULATION_SIZE = 150;
 const OPTIONS = Trainer.Options{
@@ -34,7 +36,7 @@ const OPTIONS = Trainer.Options{
     },
 };
 
-var is_saving = AtomicBool.init(false);
+var saving_threads = AtomicBool.init(0);
 
 const SaveJson = struct {
     seed: u64,
@@ -42,7 +44,6 @@ const SaveJson = struct {
     fitnesses: []const ?f64,
 };
 
-// TODO: Fix program sometimes not exiting on SIG.INT
 pub fn main() !void {
     setupExitHandler();
     zmai.setRandomSeed(std.crypto.random.int(u64));
@@ -61,7 +62,6 @@ pub fn main() !void {
     defer allocator.free(fitnesses);
 
     var fitnesses_lock = Mutex{};
-
     var threads: [THREADS]std.Thread = undefined;
     for (&threads) |*thread| {
         thread.* = try std.Thread.spawn(
@@ -74,27 +74,23 @@ pub fn main() !void {
         thread.join();
     };
 
-    var save_timer = engine.PeriodicTrigger.init(20 * time.ns_per_s);
-    while (trainer.generation < GENERATIONS) {
-        // Wait for all fitnesses to be calculated
-        outer: while (true) {
-            for (fitnesses) |fit| {
-                if (std.math.isNan(fit orelse break)) {
-                    break;
-                }
-            } else break :outer;
+    var save_timer = engine.PeriodicTrigger.init(SAVE_INTERVAL);
+    outer: while (trainer.generation < GENERATIONS) {
+        time.sleep(time.ns_per_ms);
+        if (save_timer.trigger()) |_| {
+            try saveSafe(allocator, SAVE_DIR ++ "current.json", seed, trainer, fitnesses);
+        }
 
-            if (save_timer.trigger()) |_| {
-                try save(allocator, SAVE_DIR ++ "current.json", seed, trainer, fitnesses);
+        // Wait for all fitnesses to be calculated
+        for (fitnesses) |fit| {
+            if (std.math.isNan(fit orelse continue :outer)) {
+                continue :outer;
             }
-            time.sleep(time.ns_per_ms);
         }
 
         const path = try std.fmt.allocPrint(allocator, "{s}{}.json", .{ SAVE_DIR, trainer.generation });
         defer allocator.free(path);
-        try save(allocator, path, seed, trainer, fitnesses);
-        // Force trigger timer
-        save_timer.last = time.nanoTimestamp();
+        try saveSafe(allocator, path, seed, trainer, fitnesses);
 
         const final_fitnesses = try allocator.alloc(f64, fitnesses.len);
         defer allocator.free(final_fitnesses);
@@ -136,8 +132,18 @@ fn setupExitHandler() void {
 fn handleExit(sig: c_int) callconv(.C) void {
     switch (sig) {
         SIG.INT => {
-            // Wait for save to finish
-            while (is_saving.raw) {}
+            const TIMEOUT = 10 * time.ns_per_s;
+            const start = time.nanoTimestamp();
+
+            // Set to -1 to signal saves to stop and wait for saves to finish
+            const saving_count = saving_threads.swap(-1, .monotonic);
+            while (saving_threads.raw >= -saving_count) {
+                // Force stop if saves take too long to finish
+                if (time.nanoTimestamp() - start > TIMEOUT) {
+                    break;
+                }
+                time.sleep(time.ns_per_ms);
+            }
             std.process.exit(0);
         },
         // This handler is only registered for SIG.INT
@@ -210,13 +216,14 @@ fn save(
     trainer: Trainer,
     fitnesses: []const ?f64,
 ) !void {
-    // Skip if already saving
-    if (is_saving.raw) {
+    // Multiple threads can save at the same time, but no threads should start
+    // saving when we are exiting
+    if (saving_threads.raw < 0) {
         return;
     }
 
-    is_saving.store(true, .monotonic);
-    defer is_saving.store(false, .monotonic);
+    _ = saving_threads.fetchAdd(1, .monotonic);
+    defer _ = saving_threads.fetchSub(1, .monotonic);
 
     const trainer_json = try Trainer.TrainerJson.init(allocator, trainer);
     defer trainer_json.deinit(allocator);
@@ -230,6 +237,38 @@ fn save(
         .trainer = trainer_json,
         .fitnesses = fitnesses,
     }, .{}, file.writer());
+}
+
+/// Performs saving on a new thread so that it is not interrupted by the exit
+/// handler.
+fn saveSafe(
+    allocator: Allocator,
+    path: []const u8,
+    seed: u64,
+    trainer: Trainer,
+    fitnesses: []?f64,
+) !void {
+    const saveOnceThread = struct {
+        fn saveOnceThread(
+            _path: []const u8,
+            _seed: u64,
+            _trainer: Trainer,
+            _fitnesses: []?f64,
+        ) !void {
+            var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+            const _allocator = gpa.allocator();
+            defer _ = gpa.deinit();
+
+            try save(_allocator, _path, _seed, _trainer, _fitnesses);
+        }
+    }.saveOnceThread;
+
+    const save_thread = try std.Thread.spawn(
+        .{ .allocator = allocator },
+        saveOnceThread,
+        .{ path, seed, trainer, fitnesses },
+    );
+    save_thread.detach();
 }
 
 fn printGenerationStats(trainer: Trainer, fitnesses: []const f64) void {
