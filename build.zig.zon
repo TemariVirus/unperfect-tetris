@@ -7,8 +7,8 @@
             .hash = "1220f8c45a9085221a07fa447254503b4363cf816ae2b37c1fe6c52eb51bbca2472c",
         },
         .zmai = .{
-            .url = "https://github.com/TemariVirus/zmai/archive/996a201f7bda39cd965f7b723c07f73330637d84.tar.gz",
-            .hash = "122074e9913b096c1d210031618f13c6f47ad63b3583284be7170a0c34adaedc51b3",
+            .url = "https://github.com/TemariVirus/zmai/archive/fa4f6af39bb185555221346a6d3395cfb31258be.tar.gz",
+            .hash = "12205906277f0eaff4417d1cf18062e8e30331868f100a93684f1ef5708fd11d6c4b",
         },
     },
     .paths = .{

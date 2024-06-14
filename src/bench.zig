@@ -34,16 +34,14 @@ pub fn pcBenchmark() !void {
     const nn = try NN.load(allocator, "NNs/Fast.json");
     defer nn.deinit(allocator);
 
-    var total_time: u64 = 0;
+    const start = time.nanoTimestamp();
     var max_time: u64 = 0;
-
     for (0..RUN_COUNT) |seed| {
         const gamestate = GameState.init(SevenBag.init(seed), engine.kicks.srsPlus);
 
-        const start = time.nanoTimestamp();
+        const solve_start = time.nanoTimestamp();
         const solution = try pc.findPc(allocator, gamestate, nn, 4, 11);
-        const time_taken: u64 = @intCast(time.nanoTimestamp() - start);
-        total_time += time_taken;
+        const time_taken: u64 = @intCast(time.nanoTimestamp() - solve_start);
         max_time = @max(max_time, time_taken);
 
         std.debug.print(
@@ -52,6 +50,7 @@ pub fn pcBenchmark() !void {
         );
         allocator.free(solution);
     }
+    const total_time: u64 = @intCast(time.nanoTimestamp() - start);
 
     std.debug.print("Mean: {}\n", .{std.fmt.fmtDuration(total_time / RUN_COUNT)});
     std.debug.print("Max: {}\n", .{std.fmt.fmtDuration(max_time)});

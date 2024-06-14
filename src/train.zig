@@ -20,17 +20,17 @@ const root = @import("root.zig");
 const NN = root.NN;
 const pc = root.pc;
 
-const THREADS = std.Thread.getCpuCount() catch unreachable;
+const THREADS = 4;
 const SAVE_DIR = "pops/";
-const GENERATIONS = 100;
-const POPULATION_SIZE = 300;
+const GENERATIONS = 20;
+const POPULATION_SIZE = 150;
 const OPTIONS = Trainer.Options{
-    .species_target = 12,
+    .species_target = 10,
     .nn_options = .{
         .input_count = 5,
         .output_count = 1,
-        .hidden_activation = .relu,
-        .output_activation = .identity,
+        .hidden_activation = .swish,
+        .output_activation = .gaussian,
     },
 };
 
@@ -42,10 +42,10 @@ const SaveJson = struct {
     fitnesses: []const ?f64,
 };
 
+// TODO: Fix program sometimes not exiting on SIG.INT
 pub fn main() !void {
     setupExitHandler();
     zmai.setRandomSeed(std.crypto.random.int(u64));
-    std.debug.print("{}\n", .{THREADS});
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -74,6 +74,7 @@ pub fn main() !void {
         thread.join();
     };
 
+    var save_timer = engine.PeriodicTrigger.init(20 * time.ns_per_s);
     while (trainer.generation < GENERATIONS) {
         // Wait for all fitnesses to be calculated
         outer: while (true) {
@@ -83,14 +84,17 @@ pub fn main() !void {
                 }
             } else break :outer;
 
-            // Save once every 500ms
-            try save(allocator, SAVE_DIR ++ "current.json", seed, trainer, fitnesses);
-            time.sleep(500 * time.ns_per_ms);
+            if (save_timer.trigger()) |_| {
+                try save(allocator, SAVE_DIR ++ "current.json", seed, trainer, fitnesses);
+            }
+            time.sleep(time.ns_per_ms);
         }
 
         const path = try std.fmt.allocPrint(allocator, "{s}{}.json", .{ SAVE_DIR, trainer.generation });
         defer allocator.free(path);
         try save(allocator, path, seed, trainer, fitnesses);
+        // Force trigger timer
+        save_timer.last = time.nanoTimestamp();
 
         const final_fitnesses = try allocator.alloc(f64, fitnesses.len);
         defer allocator.free(final_fitnesses);
@@ -98,11 +102,11 @@ pub fn main() !void {
             final_fitnesses[i] = fitnesses[i] orelse unreachable;
         }
 
+        printGenerationStats(trainer, final_fitnesses);
         seed = std.crypto.random.int(u64);
         if (trainer.generation != GENERATIONS - 1) {
             try trainer.nextGeneration(final_fitnesses);
         }
-        printGenerationStats(trainer, final_fitnesses);
 
         fitnesses_lock.lock();
         @memset(fitnesses, null);
@@ -206,6 +210,11 @@ fn save(
     trainer: Trainer,
     fitnesses: []const ?f64,
 ) !void {
+    // Skip if already saving
+    if (is_saving.raw) {
+        return;
+    }
+
     is_saving.store(true, .monotonic);
     defer is_saving.store(false, .monotonic);
 
@@ -223,30 +232,6 @@ fn save(
     }, .{}, file.writer());
 }
 
-fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
-    const RUN_COUNT = 10;
-
-    var rand = std.Random.DefaultPrng.init(seed);
-    var timer = try time.Timer.start();
-    for (0..RUN_COUNT) |_| {
-        const gamestate = GameState.init(
-            SevenBag.init(rand.next()),
-            engine.kicks.srsPlus,
-        );
-
-        // Optimize for 4 line PCs (but not all states have a 4 line PC so
-        // provide extra pieces for a 6 line PC)
-        const solution = try pc.findPc(allocator, gamestate, nn, 4, 16);
-        std.mem.doNotOptimizeAway(solution);
-        allocator.free(solution);
-    }
-
-    // Return solutions/s as fitness
-    const time_taken: f64 = @floatFromInt(timer.read());
-    // Add 1ms to avoid division by zero
-    return time.ns_per_s / (time_taken + time.ns_per_ms);
-}
-
 fn printGenerationStats(trainer: Trainer, fitnesses: []const f64) void {
     var avg_fitness: f64 = 0;
     for (fitnesses) |f| {
@@ -254,7 +239,7 @@ fn printGenerationStats(trainer: Trainer, fitnesses: []const f64) void {
     }
     avg_fitness /= @floatFromInt(fitnesses.len);
 
-    std.debug.print("\nGen {}, Species: {}, Avg fit: {d:.4}, Max Fit: {d:.4}\n\n", .{
+    std.debug.print("\nGen {}, Species: {}, Avg fit: {d:.3}, Max Fit: {d:.3}\n\n", .{
         trainer.generation,
         trainer.species.len,
         avg_fitness,
@@ -307,6 +292,44 @@ fn doWork(
             .net = nn,
         });
         fitnesses[i] = fitness;
-        std.debug.print("NN {}: {d:.4}\n", .{ i, fitness });
+        std.debug.print("NN {}: {d:.3}\n", .{ i, fitness });
     }
+}
+
+fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
+    const RUN_COUNT = 100;
+
+    var rand = std.Random.DefaultPrng.init(seed);
+    var timer = try time.Timer.start();
+    for (0..RUN_COUNT) |i| {
+        // Start at random position in bag
+        var bag = SevenBag.init(rand.next());
+        bag.random.random().shuffle(engine.pieces.PieceKind, &bag.pieces);
+        bag.index = bag.random.random().uintLessThan(u8, bag.pieces.len);
+        const gamestate = GameState.init(
+            bag,
+            engine.kicks.srsPlus,
+        );
+
+        // Optimize for 4 line PCs (but not all states have a 4 line PC so
+        // provide extra pieces for a 6 line PC)
+        const solution = try pc.findPc(allocator, gamestate, nn, 4, 16);
+        std.mem.doNotOptimizeAway(solution);
+        allocator.free(solution);
+
+        if (i % 10 != 0) {
+            continue;
+        }
+        // Return fitness early if too low
+        const time_taken = @as(f64, @floatFromInt(timer.read())) / RUN_COUNT;
+        const fitness = time.ns_per_s / (time_taken + time.ns_per_ms);
+        if (fitness < 5) {
+            return fitness;
+        }
+    }
+
+    // Return solutions/s as fitness
+    const time_taken = @as(f64, @floatFromInt(timer.read())) / RUN_COUNT;
+    // Add 1ms to avoid division by zero
+    return time.ns_per_s / (time_taken + time.ns_per_ms);
 }

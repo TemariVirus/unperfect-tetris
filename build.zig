@@ -149,6 +149,8 @@ fn buildTrain(
     train_exe.root_module.addImport("engine", engine_module);
     train_exe.root_module.addImport("zmai", zmai_module);
 
+    b.installArtifact(train_exe);
+
     const train_cmd = b.addRunArtifact(train_exe);
     train_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
