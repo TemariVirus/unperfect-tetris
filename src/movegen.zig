@@ -186,7 +186,7 @@ pub fn orderMoves(
     max_height: u3,
     comptime validFn: fn (BoardMask, u3) bool,
     score_args: anytype,
-    comptime scoreFn: fn (BoardMask, @TypeOf(score_args)) f32,
+    comptime scoreFn: fn (BoardMask, u3, @TypeOf(score_args)) f32,
 ) !void {
     var iter = moves.iterator(piece);
     while (iter.next()) |placement| {
@@ -200,7 +200,7 @@ pub fn orderMoves(
 
         try queue.add(.{
             .placement = placement,
-            .score = scoreFn(board, score_args),
+            .score = scoreFn(board, max_height, score_args),
         });
     }
 }

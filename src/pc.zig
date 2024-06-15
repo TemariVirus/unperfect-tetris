@@ -269,8 +269,8 @@ fn isPcPossible(playfield: BoardMask, max_height: u3) bool {
     return true;
 }
 
-fn orderScore(playfield: BoardMask, nn: NN) f32 {
-    const features = root.getFeatures(playfield, nn.inputs_used);
+fn orderScore(playfield: BoardMask, max_height: u3, nn: NN) f32 {
+    const features = root.getFeatures(playfield, max_height, nn.inputs_used);
     return nn.predict(features);
 }
 

@@ -83,7 +83,7 @@ pub fn getFeaturesBenchmark() void {
     const start = time.nanoTimestamp();
     for (0..RUN_COUNT) |_| {
         std.mem.doNotOptimizeAway(
-            root.getFeatures(playfield, .{ true, true, true, true, true }),
+            root.getFeatures(playfield, 6, [_]bool{true} ** 7),
         );
     }
     const time_taken: u64 = @intCast(time.nanoTimestamp() - start);

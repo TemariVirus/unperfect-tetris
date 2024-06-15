@@ -138,10 +138,10 @@ pub fn PiecePosSet(comptime shape: [3]usize) type {
 
 pub const NN = struct {
     net: NNInner,
-    inputs_used: [5]bool,
+    inputs_used: [7]bool,
 
     pub fn load(allocator: Allocator, path: []const u8) !NN {
-        var inputs_used: [5]bool = undefined;
+        var inputs_used: [7]bool = undefined;
         const nn = try NNInner.load(allocator, path, &inputs_used);
         return .{
             .net = nn,
@@ -153,7 +153,7 @@ pub const NN = struct {
         self.net.deinit(allocator);
     }
 
-    pub fn predict(self: NN, input: [5]f32) f32 {
+    pub fn predict(self: NN, input: [7]f32) f32 {
         var output: [1]f32 = undefined;
         self.net.predict(&input, &output);
         return output[0];
@@ -161,7 +161,7 @@ pub const NN = struct {
 };
 
 // TODO: Optimise with SIMD?
-pub fn getFeatures(playfield: BoardMask, inputs_used: [5]bool) [5]f32 {
+pub fn getFeatures(playfield: BoardMask, max_height: u3, inputs_used: [7]bool) [7]f32 {
     // Find highest block in each column. Heights start from 0
     var column = comptime blk: {
         var column = @as(u64, 1);
@@ -266,7 +266,17 @@ pub fn getFeatures(playfield: BoardMask, inputs_used: [5]bool) [5]f32 {
         break :blk @floatFromInt(col_trans);
     } else undefined;
 
-    return .{ std_h, caves, pillars, row_trans, col_trans };
+    return .{
+        std_h,
+        caves,
+        pillars,
+        row_trans,
+        col_trans,
+        // Max height
+        @floatFromInt(max_height),
+        // Empty cells
+        @floatFromInt(@as(u6, max_height) * 10 - @popCount(playfield.mask)),
+    };
 }
 
 test {
@@ -283,11 +293,14 @@ test getFeatures {
                 0b0010000001 << (1 * BoardMask.WIDTH) |
                 0b1111111111 << (0 * BoardMask.WIDTH),
         },
-        [_]bool{true} ** 5,
+        6,
+        [_]bool{true} ** 7,
     );
     try expect(features[0] == 11.7046995);
     try expect(features[1] == 10);
     try expect(features[2] == 47);
     try expect(features[3] == 14);
     try expect(features[4] == 22);
+    try expect(features[5] == 6);
+    try expect(features[6] == 40);
 }

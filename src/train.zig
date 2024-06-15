@@ -22,17 +22,19 @@ const pc = root.pc;
 
 const THREADS = 4;
 const SAVE_INTERVAL = 10 * time.ns_per_s;
-const SAVE_DIR = "pops/";
+const SAVE_DIR = "pops/elu-identity/";
 
-const GENERATIONS = 20;
-const POPULATION_SIZE = 150;
+const GENERATIONS = 50;
+const POPULATION_SIZE = 300;
 const OPTIONS = Trainer.Options{
-    .species_target = 10,
+    // Fixed compatibility threshold
+    .species_try_times = 1,
+    .compat_mod = 1.0,
     .nn_options = .{
-        .input_count = 5,
+        .input_count = 7,
         .output_count = 1,
-        .hidden_activation = .swish,
-        .output_activation = .gaussian,
+        .hidden_activation = .elu,
+        .output_activation = .identity,
     },
 };
 
@@ -100,9 +102,7 @@ pub fn main() !void {
 
         printGenerationStats(trainer, final_fitnesses);
         seed = std.crypto.random.int(u64);
-        if (trainer.generation != GENERATIONS - 1) {
-            try trainer.nextGeneration(final_fitnesses);
-        }
+        try trainer.nextGeneration(final_fitnesses);
 
         fitnesses_lock.lock();
         @memset(fitnesses, null);
@@ -110,6 +110,7 @@ pub fn main() !void {
     }
 }
 
+const handle_signals = [_]c_int{ SIG.ABRT, SIG.INT, SIG.QUIT, SIG.STOP, SIG.TERM };
 fn setupExitHandler() void {
     if (@import("builtin").os.tag == .windows) {
         const signal = struct {
@@ -118,36 +119,36 @@ fn setupExitHandler() void {
                 func: *const fn (c_int, c_int) callconv(os.windows.WINAPI) void,
             ) callconv(.C) *anyopaque;
         }.signal;
-        _ = signal(SIG.INT, handleExitWindows);
+        for (handle_signals) |sig| {
+            _ = signal(sig, handleExitWindows);
+        }
     } else {
         const action = os.linux.Sigaction{
             .handler = .{ .handler = handleExit },
             .mask = os.linux.empty_sigset,
             .flags = 0,
         };
-        _ = os.linux.sigaction(SIG.INT, &action, null);
+        for (handle_signals) |sig| {
+            _ = os.linux.sigaction(sig, &action, null);
+        }
     }
 }
 
 fn handleExit(sig: c_int) callconv(.C) void {
-    switch (sig) {
-        SIG.INT => {
-            const TIMEOUT = 10 * time.ns_per_s;
-            const start = time.nanoTimestamp();
+    if (std.mem.containsAtLeast(c_int, &handle_signals, 1, &.{sig})) {
+        const TIMEOUT = 10 * time.ns_per_s;
+        const start = time.nanoTimestamp();
 
-            // Set to -1 to signal saves to stop and wait for saves to finish
-            const saving_count = saving_threads.swap(-1, .monotonic);
-            while (saving_threads.raw >= -saving_count) {
-                // Force stop if saves take too long to finish
-                if (time.nanoTimestamp() - start > TIMEOUT) {
-                    break;
-                }
-                time.sleep(time.ns_per_ms);
+        // Set to -1 to signal saves to stop and wait for saves to finish
+        const saving_count = saving_threads.swap(-1, .monotonic);
+        while (saving_threads.raw >= -saving_count) {
+            // Force stop if saves take too long to finish
+            if (time.nanoTimestamp() - start > TIMEOUT) {
+                break;
             }
-            std.process.exit(0);
-        },
-        // This handler is only registered for SIG.INT
-        else => unreachable,
+            time.sleep(time.ns_per_ms);
+        }
+        std.process.exit(0);
     }
 }
 
@@ -163,7 +164,7 @@ fn loadOrInit(
 ) !struct { Trainer, []?f64, u64 } {
     // Init if file does not exist
     fs.cwd().access(path, .{}) catch |e| if (e == fs.Dir.AccessError.FileNotFound) {
-        var trainer = try Trainer.init(allocator, population_size, 1.0, options);
+        var trainer = try Trainer.init(allocator, population_size, 0.6, options);
         errdefer trainer.deinit();
         const fitnesses = try allocator.alloc(?f64, population_size);
         @memset(fitnesses, null);
@@ -268,7 +269,7 @@ fn saveSafe(
         saveOnceThread,
         .{ path, seed, trainer, fitnesses },
     );
-    save_thread.detach();
+    save_thread.join();
 }
 
 fn printGenerationStats(trainer: Trainer, fitnesses: []const f64) void {
@@ -347,7 +348,7 @@ fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
         bag.index = bag.random.random().uintLessThan(u8, bag.pieces.len);
         const gamestate = GameState.init(
             bag,
-            engine.kicks.srsPlus,
+            engine.kicks.srs,
         );
 
         // Optimize for 4 line PCs (but not all states have a 4 line PC so
