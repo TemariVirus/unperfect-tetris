@@ -372,6 +372,8 @@ pub fn SequenceIterator(comptime len: usize, comptime unlocked: usize) type {
             }
         }
 
+        /// Puts the array in cannonical order by ensuring that the hold is
+        /// smaller than the current next piece.
         fn canonical(current: PieceArray(len)) PieceArray(len) {
             if (current.get(len - 1) <= current.get(len - 2)) {
                 return current;

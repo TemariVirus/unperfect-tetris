@@ -340,6 +340,9 @@ fn doWork(
 fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
     const RUN_COUNT = 50;
 
+    const placements = try allocator.alloc(root.Placement, 10);
+    defer allocator.free(placements);
+
     var rand = std.Random.DefaultPrng.init(seed);
     var timer = try time.Timer.start();
     for (0..RUN_COUNT) |i| {
@@ -350,15 +353,14 @@ fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
         const gamestate = GameState.init(bag, engine.kicks.srs);
 
         // Optimize for 4 line PCs
-        const solution = pc.findPc(allocator, gamestate, nn, 4, 11) catch |e| {
-            if (e != pc.FindPcError.NotEnoughPieces) {
+        const solution = pc.findPc(allocator, gamestate, nn, 4, placements) catch |e| {
+            if (e != pc.FindPcError.SolutionTooLong) {
                 return e;
             } else {
                 continue;
             }
         };
         std.mem.doNotOptimizeAway(solution);
-        allocator.free(solution);
 
         // Return fitness early if too low after 20 runs
         if (i < 10) {

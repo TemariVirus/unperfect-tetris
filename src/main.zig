@@ -26,14 +26,9 @@ pub fn main() !void {
     var solved: usize = 0;
     var count: usize = 0;
 
-    // # 5 lookaheads no hold
-    // Solved 120 out of 13020 (0.922%)
-    // 3.58ms per sequence
-    //
-    // # 6 lookaheads empty hold
-    // Solved 576 out of 69300 (0.831%)
-    // Took 3.731ms per sequence
-    //
+    const placements = try allocator.alloc(root.Placement, NEXT_LEN + 1);
+    defer allocator.free(placements);
+
     // # 5/6 lookaheads any hold
     // Solved 3522 out of 57750 (6.099%)
     // Took 2.962ms per sequence
@@ -42,14 +37,13 @@ pub fn main() !void {
     while (try iter.next()) |pieces| {
         count += 1;
 
-        const solution = pc.findPc(
+        _ = pc.findPc(
             allocator,
             gameWithPieces(&pieces),
             nn,
             0,
-            NEXT_LEN + 1,
+            placements,
         ) catch continue;
-        defer allocator.free(solution);
 
         solved += 1;
         std.debug.print("Solved {} out of {}\n", .{ solved, count });

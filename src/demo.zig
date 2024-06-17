@@ -129,8 +129,9 @@ fn pcThread(allocator: Allocator, state: GameState, queue: *SolutionList) !void 
             time.sleep(time.ns_per_ms);
         }
 
-        const placements = try pc.findPc(allocator, game, nn, 0, 16);
-        for (placements) |placement| {
+        const placements = try allocator.alloc(Placement, 16);
+        const solution = try pc.findPc(allocator, game, nn, 0, placements);
+        for (solution) |placement| {
             if (game.current.kind != placement.piece.kind) {
                 game.hold();
             }
@@ -140,7 +141,8 @@ fn pcThread(allocator: Allocator, state: GameState, queue: *SolutionList) !void 
             game.nextPiece();
         }
 
-        try queue.append(placements);
+        _ = allocator.resize(placements, solution.len);
+        try queue.append(solution);
     }
 }
 

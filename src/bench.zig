@@ -34,21 +34,24 @@ pub fn pcBenchmark() !void {
     const nn = try NN.load(allocator, "NNs/Fast2.json");
     defer nn.deinit(allocator);
 
+    const placements = try allocator.alloc(root.Placement, 10);
+    defer allocator.free(placements);
+
     const start = time.nanoTimestamp();
     var max_time: u64 = 0;
     for (0..RUN_COUNT) |seed| {
         const gamestate = GameState.init(SevenBag.init(seed), engine.kicks.srsPlus);
 
         const solve_start = time.nanoTimestamp();
-        const solution = try pc.findPc(allocator, gamestate, nn, 4, 11);
+        const solution = try pc.findPc(allocator, gamestate, nn, 4, placements);
         const time_taken: u64 = @intCast(time.nanoTimestamp() - solve_start);
         max_time = @max(max_time, time_taken);
+        std.mem.doNotOptimizeAway(solution);
 
         std.debug.print(
             "Seed: {:<2} | Time taken: {}\n",
             .{ seed, std.fmt.fmtDuration(time_taken) },
         );
-        allocator.free(solution);
     }
     const total_time: u64 = @intCast(time.nanoTimestamp() - start);
 

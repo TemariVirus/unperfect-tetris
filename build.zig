@@ -45,7 +45,6 @@ fn buildExe(
         .root_source_file = lazyPath(b, "src/main.zig"),
         .target = target,
         .optimize = optimize,
-        .strip = optimize != .Debug,
     });
     exe.root_module.addImport("engine", engine_module);
     exe.root_module.addImport("zmai", zmai_module);

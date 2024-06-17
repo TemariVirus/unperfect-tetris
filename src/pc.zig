@@ -4,7 +4,6 @@ const assert = std.debug.assert;
 const expect = std.testing.expect;
 
 const engine = @import("engine");
-const kicks = engine.kicks;
 const GameState = engine.GameState(SevenBag);
 const KickFn = engine.kicks.KickFn;
 const PieceKind = engine.pieces.PieceKind;
@@ -25,7 +24,7 @@ const NodeSet = std.AutoHashMap(SearchNode, void);
 
 pub const FindPcError = error{
     NoPcExists,
-    NotEnoughPieces,
+    SolutionTooLong,
 };
 
 /// Finds a perfect clear with the least number of pieces possible for the given
@@ -38,7 +37,7 @@ pub fn findPc(
     game: GameState,
     nn: NN,
     min_height: u3,
-    comptime max_pieces: usize,
+    placements: []Placement,
 ) ![]Placement {
     const playfield = BoardMask.from(game.playfield);
 
@@ -71,7 +70,9 @@ pub fn findPc(
     var cache = NodeSet.init(allocator);
     defer cache.deinit();
 
-    var pieces = getPieces(game, max_pieces);
+    const pieces = try getPieces(allocator, game, placements.len + 1);
+    defer allocator.free(pieces);
+
     // 20 is the lowest common multiple of the width of the playfield (10) and the
     // number of cells in a piece (4). 20 / 4 = 5 extra pieces for each bigger
     // perfect clear
@@ -80,9 +81,6 @@ pub fn findPc(
         if (max_height < min_height) {
             continue;
         }
-
-        const placements = try allocator.alloc(Placement, pieces_needed);
-        errdefer allocator.free(placements);
 
         const queues = try allocator.alloc(movegen.MoveQueue, pieces_needed);
         for (0..queues.len) |i| {
@@ -98,33 +96,32 @@ pub fn findPc(
         cache.clearRetainingCapacity();
         if (findPcInner(
             playfield,
-            &pieces,
+            pieces,
             queues,
-            placements,
+            placements[0..pieces_needed],
             game.kicks,
             &cache,
             nn,
             @intCast(max_height),
         )) {
-            return placements;
+            return placements[0..pieces_needed];
         }
-
-        allocator.free(placements);
     }
 
-    return FindPcError.NotEnoughPieces;
+    return FindPcError.SolutionTooLong;
 }
 
-fn getPieces(game: GameState, comptime pieces_count: usize) [pieces_count]PieceKind {
+fn getPieces(allocator: Allocator, game: GameState, pieces_count: usize) ![]PieceKind {
     if (pieces_count == 0) {
-        return .{};
-    }
-    if (pieces_count == 1) {
-        return .{game.current.kind};
+        return &.{};
     }
 
-    var pieces = [_]PieceKind{undefined} ** pieces_count;
+    var pieces = try allocator.alloc(PieceKind, pieces_count);
     pieces[0] = game.current.kind;
+    if (pieces_count == 1) {
+        return pieces;
+    }
+
     const start: usize = if (game.hold_kind) |hold| blk: {
         pieces[1] = hold;
         break :blk 2;
@@ -277,14 +274,15 @@ fn orderScore(playfield: BoardMask, max_height: u3, nn: NN) f32 {
 test "4-line PC" {
     const allocator = std.testing.allocator;
 
-    var gamestate = GameState.init(SevenBag.init(0), kicks.srsPlus);
+    var gamestate = GameState.init(SevenBag.init(0), engine.kicks.srsPlus);
 
     const nn = try NN.load(allocator, "NNs/Fast2.json");
     defer nn.deinit(allocator);
 
-    const solution = try findPc(allocator, gamestate, nn, 0, 11);
-    defer allocator.free(solution);
+    const placements = try allocator.alloc(Placement, 10);
+    defer allocator.free(placements);
 
+    const solution = try findPc(allocator, gamestate, nn, 0, placements);
     try expect(solution.len == 10);
 
     for (solution[0 .. solution.len - 1]) |placement| {
