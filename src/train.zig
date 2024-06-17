@@ -1,6 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const AtomicBool = std.atomic.Value(i32);
+const AtomicInt = std.atomic.Value(i32);
 const fs = std.fs;
 const json = std.json;
 const Mutex = std.Thread.Mutex;
@@ -22,23 +22,24 @@ const pc = root.pc;
 
 const THREADS = 4;
 const SAVE_INTERVAL = 10 * time.ns_per_s;
-const SAVE_DIR = "pops/elu-identity/";
+const SAVE_DIR = "pops/swish-identity/";
 
 const GENERATIONS = 50;
-const POPULATION_SIZE = 300;
+const POPULATION_SIZE = 1000;
 const OPTIONS = Trainer.Options{
-    // Fixed compatibility threshold
-    .species_try_times = 1,
-    .compat_mod = 1.0,
+    .species_target = 20,
+    .mutate_options = .{
+        .node_add_prob = 0.05,
+    },
     .nn_options = .{
         .input_count = 7,
         .output_count = 1,
-        .hidden_activation = .elu,
+        .hidden_activation = .swish,
         .output_activation = .identity,
     },
 };
 
-var saving_threads = AtomicBool.init(0);
+var saving_threads = AtomicInt.init(0);
 
 const SaveJson = struct {
     seed: u64,
@@ -337,7 +338,7 @@ fn doWork(
 }
 
 fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
-    const RUN_COUNT = 100;
+    const RUN_COUNT = 50;
 
     var rand = std.Random.DefaultPrng.init(seed);
     var timer = try time.Timer.start();
@@ -346,24 +347,26 @@ fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
         var bag = SevenBag.init(rand.next());
         bag.random.random().shuffle(engine.pieces.PieceKind, &bag.pieces);
         bag.index = bag.random.random().uintLessThan(u8, bag.pieces.len);
-        const gamestate = GameState.init(
-            bag,
-            engine.kicks.srs,
-        );
+        const gamestate = GameState.init(bag, engine.kicks.srs);
 
-        // Optimize for 4 line PCs (but not all states have a 4 line PC so
-        // provide extra pieces for a 6 line PC)
-        const solution = try pc.findPc(allocator, gamestate, nn, 4, 16);
+        // Optimize for 4 line PCs
+        const solution = pc.findPc(allocator, gamestate, nn, 4, 11) catch |e| {
+            if (e != pc.FindPcError.NotEnoughPieces) {
+                return e;
+            } else {
+                continue;
+            }
+        };
         std.mem.doNotOptimizeAway(solution);
         allocator.free(solution);
 
-        if (i % 10 != 0) {
+        // Return fitness early if too low after 20 runs
+        if (i < 10) {
             continue;
         }
-        // Return fitness early if too low
-        const time_taken = @as(f64, @floatFromInt(timer.read())) / RUN_COUNT;
+        const time_taken = @as(f64, @floatFromInt(timer.read())) / @as(f64, @floatFromInt(i));
         const fitness = time.ns_per_s / (time_taken + time.ns_per_ms);
-        if (fitness < 5) {
+        if (fitness < 10) {
             return fitness;
         }
     }

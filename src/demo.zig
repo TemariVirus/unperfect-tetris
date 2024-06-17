@@ -121,7 +121,7 @@ fn placePcPiece(
 fn pcThread(allocator: Allocator, state: GameState, queue: *SolutionList) !void {
     var game = state;
 
-    const nn = try NN.load(allocator, "NNs/Fast.json");
+    const nn = try NN.load(allocator, "NNs/Fast2.json");
     defer nn.deinit(allocator);
 
     while (true) {

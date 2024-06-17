@@ -14,8 +14,8 @@ pub fn main() !void {
     getFeaturesBenchmark();
 }
 
-// Mean: 33.383ms
-// Max: 576.272ms
+// Mean: 39.823ms
+// Max: 571.313ms
 pub fn pcBenchmark() !void {
     const RUN_COUNT = 100;
 
@@ -31,7 +31,7 @@ pub fn pcBenchmark() !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const nn = try NN.load(allocator, "NNs/Fast.json");
+    const nn = try NN.load(allocator, "NNs/Fast2.json");
     defer nn.deinit(allocator);
 
     const start = time.nanoTimestamp();

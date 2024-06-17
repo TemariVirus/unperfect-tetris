@@ -1,0 +1,48 @@
+{
+    "options": {
+        "input_count": 7,
+        "output_count": 1,
+        "hidden_activation": "swish",
+        "output_activation": "identity"
+    },
+    "genome": {
+        "genes": [
+            {
+                "input": 0,
+                "output": 8,
+                "weight": 1.945143699645996,
+                "enabled": true
+            },
+            {
+                "input": 1,
+                "output": 8,
+                "weight": -9.116969704627991e-1,
+                "enabled": true
+            },
+            {
+                "input": 3,
+                "output": 8,
+                "weight": -2.6019461154937744,
+                "enabled": true
+            },
+            {
+                "input": 6,
+                "output": 8,
+                "weight": 1.1811238527297974e-1,
+                "enabled": true
+            },
+            {
+                "input": 5,
+                "output": 9,
+                "weight": -3.682915270328522e-1,
+                "enabled": true
+            },
+            {
+                "input": 9,
+                "output": 8,
+                "weight": -9.064493328332901e-2,
+                "enabled": true
+            }
+        ]
+    }
+}

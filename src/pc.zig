@@ -96,7 +96,7 @@ pub fn findPc(
         }
 
         cache.clearRetainingCapacity();
-        if (try findPcInner(
+        if (findPcInner(
             playfield,
             &pieces,
             queues,
@@ -154,7 +154,7 @@ fn findPcInner(
     cache: *NodeSet,
     nn: NN,
     max_height: u3,
-) !bool {
+) bool {
     // Base case; check for perfect clear
     if (placements.len == 0) {
         return max_height == 0;
@@ -164,14 +164,14 @@ fn findPcInner(
         .board = @truncate(playfield.mask),
         .depth = @intCast(placements.len - 1),
     };
-    if ((try cache.getOrPut(node)).found_existing) {
+    if ((cache.getOrPut(node) catch unreachable).found_existing) {
         return false;
     }
 
     // Add moves to queue
     queues[0].items.len = 0;
     const m1 = movegen.allPlacements(playfield, kick_fn, pieces[0], max_height);
-    try movegen.orderMoves(
+    movegen.orderMoves(
         &queues[0],
         playfield,
         pieces[0],
@@ -184,7 +184,7 @@ fn findPcInner(
     // Check for unique hold
     if (pieces.len > 1 and pieces[0] != pieces[1]) {
         const m2 = movegen.allPlacements(playfield, kick_fn, pieces[1], max_height);
-        try movegen.orderMoves(
+        movegen.orderMoves(
             &queues[0],
             playfield,
             pieces[1],
@@ -211,7 +211,7 @@ fn findPcInner(
         const cleared = board.clearLines(placement.pos.y);
 
         const new_height = max_height - cleared;
-        if (try findPcInner(
+        if (findPcInner(
             board,
             pieces[1..],
             queues[1..],
@@ -279,7 +279,7 @@ test "4-line PC" {
 
     var gamestate = GameState.init(SevenBag.init(0), kicks.srsPlus);
 
-    const nn = try NN.load(allocator, "NNs/Fast.json");
+    const nn = try NN.load(allocator, "NNs/Fast2.json");
     defer nn.deinit(allocator);
 
     const solution = try findPc(allocator, gamestate, nn, 0, 11);

@@ -18,7 +18,7 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const nn = try NN.load(allocator, "NNs/Fast.json");
+    const nn = try NN.load(allocator, "NNs/Fast2.json");
 
     var iter = next.SequenceIterator(NEXT_LEN + 1, @min(7, NEXT_LEN)).init(allocator);
     defer iter.deinit();

@@ -11,8 +11,8 @@ const Rotation = engine.kicks.Rotation;
 
 const root = @import("root.zig");
 const BoardMask = root.bit_masks.BoardMask;
-pub const PiecePosition = root.PiecePosition;
-const PiecePosSet = root.PiecePosSet(.{ 10, 10, 4 });
+const PiecePosition = root.PiecePosition;
+pub const PiecePosSet = root.PiecePosSet(.{ 10, 10, 4 });
 const PieceMask = root.bit_masks.PieceMask;
 const Placement = root.Placement;
 
@@ -187,7 +187,7 @@ pub fn orderMoves(
     comptime validFn: fn (BoardMask, u3) bool,
     score_args: anytype,
     comptime scoreFn: fn (BoardMask, u3, @TypeOf(score_args)) f32,
-) !void {
+) void {
     var iter = moves.iterator(piece);
     while (iter.next()) |placement| {
         var board = playfield;
@@ -198,10 +198,10 @@ pub fn orderMoves(
             continue;
         }
 
-        try queue.add(.{
+        queue.add(.{
             .placement = placement,
             .score = scoreFn(board, max_height, score_args),
-        });
+        }) catch unreachable;
     }
 }
 

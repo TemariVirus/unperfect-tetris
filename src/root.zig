@@ -198,8 +198,6 @@ pub fn getFeatures(playfield: BoardMask, max_height: u3, inputs_used: [7]bool) [
                 aug_h[x] = @min(heights[x] - 2, @max(heights[x - 1], heights[x + 1]));
             }
             aug_h[9] = @min(heights[9] - 2, heights[8]);
-            // NOTE: Uncomment this line to restore the bug in the original code
-            // aug_h[9] = @min(heights[9] - 2, heights[8] - 1);
             break :inner aug_h;
         };
 
@@ -225,8 +223,6 @@ pub fn getFeatures(playfield: BoardMask, max_height: u3, inputs_used: [7]bool) [
         for (0..10) |x| {
             // Columns at the sides map to 0 if they are taller
             var diff: i32 = switch (x) {
-                // NOTE: Uncomment this line to restore the bug in the original code
-                // 0 => @min(0, heights[1] - heights[0]),
                 0 => @max(0, heights[1] - heights[0]),
                 1...8 => @intCast(@min(
                     @abs(heights[x - 1] - heights[x]),
