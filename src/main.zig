@@ -22,7 +22,7 @@ const Placement = root.Placement;
 
 const HEIGHT = 4;
 const NEXT_LEN = HEIGHT * 5 / 2;
-const THREADS = 4;
+const THREADS = 6;
 
 const SAVE_DIR = "pc-data/";
 const PC_PATH = SAVE_DIR ++ "4.pc";
@@ -33,7 +33,7 @@ var saving_threads = AtomicInt.init(0);
 /// Thread-safe ring buffer for storing and writing solutions to disk.
 const SolutionBuffer = struct {
     const CHUNK_SIZE = 64;
-    const CHUNKS = THREADS * 3;
+    const CHUNKS = THREADS * 4;
     pub const Iterator = SequenceIterator(NEXT_LEN + 1, @min(7, NEXT_LEN));
     pub const AtomicLength = std.atomic.Value(isize);
 

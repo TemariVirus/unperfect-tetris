@@ -28,9 +28,9 @@ pub fn build(b: *Build) void {
     buildExe(b, target, optimize, engine_module, zmai_module, install_NNs);
     buildDemo(b, target, optimize, engine_module, nterm_module, zmai_module, install_NNs);
     buildTests(b, engine_module, zmai_module);
-    buildBench(b, target, engine_module, zmai_module, install_NNs);
+    buildBench(b, target, engine_module, zmai_module);
     buildTrain(b, target, optimize, engine_module, zmai_module);
-    buildRead(b, target, optimize, engine_module, nterm_module, install_NNs);
+    buildRead(b, target, optimize, engine_module, nterm_module);
 }
 
 fn buildExe(
@@ -50,13 +50,14 @@ fn buildExe(
     exe.root_module.addImport("engine", engine_module);
     exe.root_module.addImport("zmai", zmai_module);
 
-    exe.step.dependOn(&install_NNs.step);
-    b.installArtifact(exe);
-
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+
+    const install = b.addInstallArtifact(exe, .{});
+    run_step.dependOn(&install.step);
+    install.step.dependOn(&install_NNs.step);
 }
 
 fn buildDemo(
@@ -78,16 +79,17 @@ fn buildDemo(
     demo_exe.root_module.addImport("nterm", nterm_module);
     demo_exe.root_module.addImport("zmai", zmai_module);
 
-    demo_exe.step.dependOn(&install_NNs.step);
-    b.installArtifact(demo_exe);
-
     const run_cmd = b.addRunArtifact(demo_exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
-    const run_step = b.step("demo", "Run the demo");
-    run_step.dependOn(&run_cmd.step);
+    const demo_step = b.step("demo", "Run the demo");
+    demo_step.dependOn(&run_cmd.step);
+
+    const install = b.addInstallArtifact(demo_exe, .{});
+    demo_step.dependOn(&install.step);
+    install.step.dependOn(&install_NNs.step);
 }
 
 fn buildTests(
@@ -111,7 +113,6 @@ fn buildBench(
     target: Build.ResolvedTarget,
     engine_module: *Build.Module,
     zmai_module: *Build.Module,
-    install_NNs: *Build.Step.InstallDir,
 ) void {
     const bench_exe = b.addExecutable(.{
         .name = "benchmarks",
@@ -121,8 +122,6 @@ fn buildBench(
     });
     bench_exe.root_module.addImport("engine", engine_module);
     bench_exe.root_module.addImport("zmai", zmai_module);
-
-    bench_exe.step.dependOn(&install_NNs.step);
 
     const bench_cmd = b.addRunArtifact(bench_exe);
     bench_cmd.step.dependOn(b.getInstallStep());
@@ -149,8 +148,6 @@ fn buildTrain(
     train_exe.root_module.addImport("engine", engine_module);
     train_exe.root_module.addImport("zmai", zmai_module);
 
-    b.installArtifact(train_exe);
-
     const train_cmd = b.addRunArtifact(train_exe);
     train_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
@@ -158,6 +155,9 @@ fn buildTrain(
     }
     const train_step = b.step("train", "Train neural networks");
     train_step.dependOn(&train_cmd.step);
+
+    const install = b.addInstallArtifact(train_exe, .{});
+    train_step.dependOn(&install.step);
 }
 
 fn buildRead(
@@ -166,7 +166,6 @@ fn buildRead(
     optimize: std.builtin.OptimizeMode,
     engine_module: *Build.Module,
     nterm_module: *Build.Module,
-    install_NNs: *Build.Step.InstallDir,
 ) void {
     const read_exe = b.addExecutable(.{
         .name = "read",
@@ -177,16 +176,16 @@ fn buildRead(
     read_exe.root_module.addImport("engine", engine_module);
     read_exe.root_module.addImport("nterm", nterm_module);
 
-    read_exe.step.dependOn(&install_NNs.step);
-    b.installArtifact(read_exe);
-
     const run_cmd = b.addRunArtifact(read_exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
-    const run_step = b.step("read", "Run the read program");
-    run_step.dependOn(&run_cmd.step);
+    const read_step = b.step("read", "Run the read program");
+    read_step.dependOn(&run_cmd.step);
+
+    const install = b.addInstallArtifact(read_exe, .{});
+    read_step.dependOn(&install.step);
 }
 
 fn lazyPath(b: *Build, path: []const u8) Build.LazyPath {
