@@ -30,7 +30,7 @@ pub fn build(b: *Build) void {
     buildTests(b, engine_module, zmai_module);
     buildBench(b, target, engine_module, zmai_module);
     buildTrain(b, target, optimize, engine_module, zmai_module);
-    buildRead(b, target, optimize, engine_module, nterm_module);
+    buildDisplay(b, target, optimize, engine_module, nterm_module);
 }
 
 fn buildExe(
@@ -160,32 +160,32 @@ fn buildTrain(
     train_step.dependOn(&install.step);
 }
 
-fn buildRead(
+fn buildDisplay(
     b: *Build,
     target: Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
     engine_module: *Build.Module,
     nterm_module: *Build.Module,
 ) void {
-    const read_exe = b.addExecutable(.{
-        .name = "read",
-        .root_source_file = lazyPath(b, "src/read.zig"),
+    const display_exe = b.addExecutable(.{
+        .name = "display",
+        .root_source_file = lazyPath(b, "src/display.zig"),
         .target = target,
         .optimize = optimize,
     });
-    read_exe.root_module.addImport("engine", engine_module);
-    read_exe.root_module.addImport("nterm", nterm_module);
+    display_exe.root_module.addImport("engine", engine_module);
+    display_exe.root_module.addImport("nterm", nterm_module);
 
-    const run_cmd = b.addRunArtifact(read_exe);
+    const run_cmd = b.addRunArtifact(display_exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
-    const read_step = b.step("read", "Run the read program");
-    read_step.dependOn(&run_cmd.step);
+    const display_step = b.step("display", "Display PC solutions");
+    display_step.dependOn(&run_cmd.step);
 
-    const install = b.addInstallArtifact(read_exe, .{});
-    read_step.dependOn(&install.step);
+    const install = b.addInstallArtifact(display_exe, .{});
+    display_step.dependOn(&install.step);
 }
 
 fn lazyPath(b: *Build, path: []const u8) Build.LazyPath {

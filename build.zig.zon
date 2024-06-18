@@ -3,8 +3,8 @@
     .version = "0.0.0",
     .dependencies = .{
         .engine = .{
-            .url = "https://github.com/TemariVirus/Budget-Tetris-Engine/archive/c2cb87a8c73c3a2284cc6185c2dbf74f58a6d3c0.tar.gz",
-            .hash = "1220f8c45a9085221a07fa447254503b4363cf816ae2b37c1fe6c52eb51bbca2472c",
+            .url = "https://github.com/TemariVirus/Budget-Tetris-Engine/archive/7021f92ff438fb6ad58ff27775b4661dc9c97a76.tar.gz",
+            .hash = "1220b6370cb09c6ae2eb77f25a58db5ea87deecc6bfcdbd5c860528088e412549373",
         },
         .zmai = .{
             .url = "https://github.com/TemariVirus/zmai/archive/fa4f6af39bb185555221346a6d3395cfb31258be.tar.gz",
