@@ -142,7 +142,7 @@ fn handleExit(sig: c_int) callconv(.C) void {
 
         // Set to -1 to signal saves to stop and wait for saves to finish
         const saving_count = saving_threads.swap(-1, .monotonic);
-        while (saving_threads.raw >= -saving_count) {
+        while (saving_threads.load(.monotonic) >= -saving_count) {
             // Force stop if saves take too long to finish
             if (time.nanoTimestamp() - start > TIMEOUT) {
                 break;
@@ -220,7 +220,7 @@ fn save(
 ) !void {
     // Multiple threads can save at the same time, but no threads should start
     // saving when we are exiting
-    if (saving_threads.raw < 0) {
+    if (saving_threads.load(.monotonic) < 0) {
         return;
     }
 

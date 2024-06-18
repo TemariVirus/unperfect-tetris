@@ -160,7 +160,6 @@ pub const NN = struct {
     }
 };
 
-// TODO: Optimise with SIMD?
 pub fn getFeatures(playfield: BoardMask, max_height: u3, inputs_used: [7]bool) [7]f32 {
     // Find highest block in each column. Heights start from 0
     var column = comptime blk: {

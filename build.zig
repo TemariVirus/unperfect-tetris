@@ -30,6 +30,7 @@ pub fn build(b: *Build) void {
     buildTests(b, engine_module, zmai_module);
     buildBench(b, target, engine_module, zmai_module, install_NNs);
     buildTrain(b, target, optimize, engine_module, zmai_module);
+    buildRead(b, target, optimize, engine_module, nterm_module, install_NNs);
 }
 
 fn buildExe(
@@ -157,6 +158,35 @@ fn buildTrain(
     }
     const train_step = b.step("train", "Train neural networks");
     train_step.dependOn(&train_cmd.step);
+}
+
+fn buildRead(
+    b: *Build,
+    target: Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    engine_module: *Build.Module,
+    nterm_module: *Build.Module,
+    install_NNs: *Build.Step.InstallDir,
+) void {
+    const read_exe = b.addExecutable(.{
+        .name = "read",
+        .root_source_file = lazyPath(b, "src/read.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    read_exe.root_module.addImport("engine", engine_module);
+    read_exe.root_module.addImport("nterm", nterm_module);
+
+    read_exe.step.dependOn(&install_NNs.step);
+    b.installArtifact(read_exe);
+
+    const run_cmd = b.addRunArtifact(read_exe);
+    run_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
+    }
+    const run_step = b.step("read", "Run the read program");
+    run_step.dependOn(&run_cmd.step);
 }
 
 fn lazyPath(b: *Build, path: []const u8) Build.LazyPath {

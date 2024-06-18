@@ -290,7 +290,7 @@ pub fn DigitsIterator(comptime len: usize) type {
 
 /// Iterates through all non-equivalent next sequences (including the hold) of length
 /// `len`. 'unlocked' is used to control the way iterations are chunked. A higher
-/// value uses more memory but runs faster.
+/// value uses more memory but reduces redundant computations.
 pub fn SequenceIterator(comptime len: usize, comptime unlocked: usize) type {
     assert(len > 2);
     assert(unlocked <= len - 1);
@@ -370,6 +370,10 @@ pub fn SequenceIterator(comptime len: usize, comptime unlocked: usize) type {
                     return null;
                 }
             }
+        }
+
+        pub fn done(self: @This()) bool {
+            return self.swap == 7;
         }
 
         /// Puts the array in cannonical order by ensuring that the hold is
