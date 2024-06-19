@@ -1,8 +1,10 @@
 const std = @import("std");
+const assert = std.debug.assert;
 const expect = std.testing.expect;
 const Order = std.math.Order;
 
 const engine = @import("engine");
+const Facing = engine.pieces.Facing;
 const KickFn = engine.kicks.KickFn;
 const Position = engine.pieces.Position;
 const Piece = engine.pieces.Piece;
@@ -11,12 +13,150 @@ const Rotation = engine.kicks.Rotation;
 
 const root = @import("root.zig");
 const BoardMask = root.bit_masks.BoardMask;
-const PiecePosition = root.PiecePosition;
-pub const PiecePosSet = root.PiecePosSet(.{ 10, 10, 4 });
+const NN = root.NN;
 const PieceMask = root.bit_masks.PieceMask;
 const Placement = root.Placement;
 
+/// A set of combinations of pieces and their positions, within certain bounds
+/// as defined by `shape`.
+pub const PiecePosSet = struct {
+    const width: usize = 10;
+    const height: usize = 6 + 3;
+    const depth: usize = 4;
+    const len = width * height * depth;
+    const BackingSet = std.StaticBitSet(len);
+    const Self = @This();
+
+    data: BackingSet,
+
+    pub const Iterator = struct {
+        set: BackingSet.Iterator(.{}),
+        piece: PieceKind,
+
+        pub fn next(self: *Iterator) ?Placement {
+            if (self.set.next()) |index| {
+                return reverseIndex(self.piece, index);
+            }
+            return null;
+        }
+    };
+
+    /// Initialises an empty set.
+    pub fn init() Self {
+        return Self{
+            .data = BackingSet.initEmpty(),
+        };
+    }
+
+    /// Converts a piece and position to an index into the backing bit set.
+    pub fn flatIndex(piece: Piece, pos: Position) usize {
+        const facing = @intFromEnum(piece.facing);
+        const x: usize = @intCast(pos.x - piece.minX());
+        const y: usize = @intCast(pos.y - piece.minY());
+
+        assert(x < width);
+        assert(y < height);
+        assert(facing < depth);
+
+        return x + y * width + facing * width * height;
+    }
+
+    /// Converts an index into the backing bit set to it's coressponding piece and
+    /// position.
+    pub fn reverseIndex(piece_kind: PieceKind, index: usize) Placement {
+        const x = index % width;
+        const y = (index / width) % height;
+        const facing = index / (width * height);
+
+        const piece = Piece{ .kind = piece_kind, .facing = @enumFromInt(facing) };
+        return .{
+            .piece = piece,
+            .pos = .{
+                .x = @as(i8, @intCast(x)) + piece.minX(),
+                .y = @as(i8, @intCast(y)) + piece.minY(),
+            },
+        };
+    }
+
+    /// Returns `true` if the set contains the given piece-position combination;
+    /// Otherwise, `false`.
+    pub fn contains(self: Self, piece: Piece, pos: Position) bool {
+        const index = Self.flatIndex(piece, pos);
+        return self.data.isSet(index);
+    }
+
+    /// Adds the given piece-position combination to the set.
+    pub fn put(self: *Self, piece: Piece, pos: Position) void {
+        const index = Self.flatIndex(piece, pos);
+        self.data.set(index);
+    }
+
+    /// Adds the given piece-position combination to the set. Returns `true` if the
+    /// combination was already in the set; Otherwise, `false`.
+    pub fn putGet(self: *Self, piece: Piece, pos: Position) bool {
+        const index = Self.flatIndex(piece, pos);
+
+        const was_set = self.data.isSet(index);
+        self.data.set(index);
+        return was_set;
+    }
+
+    /// Returns an iterator over the set.
+    pub fn iterator(self: *const Self, piece_kind: PieceKind) Iterator {
+        return Iterator{
+            .set = self.data.iterator(.{}),
+            .piece = piece_kind,
+        };
+    }
+};
+
+// 60 cells * 4 rotations = 240 intermediate placements at most
 const PlacementStack = std.BoundedArray(PiecePosition, 240);
+// Can only be used with 4-line PCs
+// const PiecePosition = packed struct {
+//     facing: Facing,
+//     pos: u6,
+
+//     pub fn pack(piece: Piece, pos: Position) PiecePosition {
+//         const x = pos.x - piece.minX();
+//         const y = pos.y - piece.minY();
+//         return PiecePosition{
+//             .facing = piece.facing,
+//             .pos = @intCast(y * BoardMask.WIDTH + x),
+//         };
+//     }
+
+//     pub fn unpack(self: PiecePosition, piece_kind: PieceKind) Placement {
+//         const piece = Piece{ .kind = piece_kind, .facing = self.facing };
+//         return .{
+//             .piece = piece,
+//             .pos = .{
+//                 .x = @intCast(self.pos % BoardMask.WIDTH + piece.minX()),
+//                 .y = @intCast(self.pos / BoardMask.WIDTH + piece.minY()),
+//             },
+//         };
+//     }
+// };
+const PiecePosition = packed struct {
+    y: i8,
+    x: i6,
+    facing: Facing,
+
+    pub fn pack(piece: Piece, pos: Position) PiecePosition {
+        return PiecePosition{
+            .y = pos.y,
+            .x = @intCast(pos.x),
+            .facing = piece.facing,
+        };
+    }
+
+    pub fn unpack(self: PiecePosition, piece_kind: PieceKind) Placement {
+        return .{
+            .piece = .{ .kind = piece_kind, .facing = self.facing },
+            .pos = .{ .y = self.y, .x = self.x },
+        };
+    }
+};
 
 const Move = enum {
     left,
@@ -35,12 +175,14 @@ const Move = enum {
     };
 };
 
-pub const Intermediate = struct {
+/// Intermediate game state when searching for possible placements.
+const Intermediate = struct {
     playfield: BoardMask,
     current: Piece,
     pos: Position,
     kicks: *const KickFn,
 
+    /// Returns `true` if the move was successful. Otherwise, `false`.
     pub fn makeMove(self: *Intermediate, move: Move) bool {
         return switch (move) {
             .left => blk: {
@@ -67,6 +209,7 @@ pub const Intermediate = struct {
         };
     }
 
+    /// Returns `true` if the piece was successfully transposed. Otherwise, `false`.
     fn tryTranspose(self: *Intermediate, pos: Position) bool {
         if (self.playfield.collides(self.current, pos)) {
             return false;
@@ -75,6 +218,7 @@ pub const Intermediate = struct {
         return true;
     }
 
+    /// Returns `true` if the piece was successfully rotated. Otherwise, `false`.
     fn tryRotate(self: *Intermediate, rotation: Rotation) bool {
         const new_piece = Piece{
             .facing = self.current.facing.rotate(rotation),
@@ -93,6 +237,7 @@ pub const Intermediate = struct {
         return false;
     }
 
+    /// Returns `true` if the piece is on the ground. Otherwise, `false`.
     pub fn onGround(self: Intermediate) bool {
         return self.playfield.collides(
             self.current,
@@ -102,7 +247,8 @@ pub const Intermediate = struct {
 };
 
 /// Returns the set of all placements where the top of the piece does not
-/// exceed `max_height`.
+/// exceed `max_height`. Assumes that no cells in the playfield are higher than
+/// `max_height`.
 pub fn allPlacements(
     playfield: BoardMask,
     kicks: *const KickFn,
@@ -113,9 +259,12 @@ pub fn allPlacements(
     var placements = PiecePosSet.init();
     var stack = PlacementStack.init(0) catch unreachable;
 
-    // Start floating right above `max_height`
-    {
-        const piece = Piece{ .facing = .up, .kind = piece_kind };
+    // Start right above `max_height`
+    inline for (@typeInfo(Facing).Enum.fields) |facing| {
+        const piece = Piece{
+            .facing = @enumFromInt(facing.value),
+            .kind = piece_kind,
+        };
         const pos = Position{
             .x = 0,
             .y = @as(i8, max_height) + piece.minY(),
@@ -148,7 +297,10 @@ pub fn allPlacements(
                 continue;
             }
 
-            // Branch out after movement
+            // Branch out after movement if the piece is not too high
+            if (new_game.pos.y > @as(i8, max_height) + new_game.current.minY()) {
+                continue;
+            }
             stack.append(
                 PiecePosition.pack(new_game.current, new_game.pos),
             ) catch unreachable;
@@ -159,7 +311,6 @@ pub fn allPlacements(
             {
                 continue;
             }
-
             placements.put(new_game.current, new_game.pos);
         }
     }
@@ -178,6 +329,8 @@ const compareFn = (struct {
 }).cmp;
 pub const MoveQueue = std.PriorityQueue(MoveNode, void, compareFn);
 
+/// Scores and orders the moves in `moves` based on the `scoreFn`, removing
+/// placements where `validFn` returns `false`. Higher scores are dequeued first.
 pub fn orderMoves(
     queue: *MoveQueue,
     playfield: BoardMask,
@@ -185,8 +338,8 @@ pub fn orderMoves(
     moves: PiecePosSet,
     max_height: u3,
     comptime validFn: fn (BoardMask, u3) bool,
-    score_args: anytype,
-    comptime scoreFn: fn (BoardMask, u3, @TypeOf(score_args)) f32,
+    nn: NN,
+    comptime scoreFn: fn (BoardMask, u3, NN) f32,
 ) void {
     var iter = moves.iterator(piece);
     while (iter.next()) |placement| {
@@ -200,7 +353,7 @@ pub fn orderMoves(
 
         queue.add(.{
             .placement = placement,
-            .score = scoreFn(board, max_height, score_args),
+            .score = scoreFn(board, max_height, nn),
         }) catch unreachable;
     }
 }

@@ -10,13 +10,13 @@ const NN = root.NN;
 const pc = root.pc;
 
 pub fn main() !void {
-    try pcBenchmark();
+    try pcBenchmark(4);
     getFeaturesBenchmark();
 }
 
-// Mean: 39.823ms
-// Max: 571.313ms
-pub fn pcBenchmark() !void {
+// Mean: 29.688ms
+// Max: 479.98ms
+pub fn pcBenchmark(comptime height: u8) !void {
     const RUN_COUNT = 100;
 
     std.debug.print(
@@ -34,7 +34,7 @@ pub fn pcBenchmark() !void {
     const nn = try NN.load(allocator, "NNs/Fast2.json");
     defer nn.deinit(allocator);
 
-    const placements = try allocator.alloc(root.Placement, 10);
+    const placements = try allocator.alloc(root.Placement, height * 10 / 4);
     defer allocator.free(placements);
 
     const start = time.nanoTimestamp();
@@ -43,7 +43,7 @@ pub fn pcBenchmark() !void {
         const gamestate = GameState.init(SevenBag.init(seed), engine.kicks.srsPlus);
 
         const solve_start = time.nanoTimestamp();
-        const solution = try pc.findPc(allocator, gamestate, nn, 4, placements);
+        const solution = try pc.findPc(allocator, gamestate, nn, height, placements);
         const time_taken: u64 = @intCast(time.nanoTimestamp() - solve_start);
         max_time = @max(max_time, time_taken);
         std.mem.doNotOptimizeAway(solution);
