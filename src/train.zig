@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 const AtomicInt = std.atomic.Value(i32);
 const fs = std.fs;
 const json = std.json;
@@ -20,7 +21,14 @@ const root = @import("perfect-tetris");
 const NN = root.NN;
 const pc = root.pc;
 
+// Height of perfect clears to find
+const HEIGHT = 4;
+comptime {
+    assert(HEIGHT % 2 == 0);
+}
+// Number of threads to use
 const THREADS = 4;
+
 const SAVE_INTERVAL = 10 * time.ns_per_s;
 const SAVE_DIR = "pops/swish-identity/";
 
@@ -340,7 +348,7 @@ fn doWork(
 fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
     const RUN_COUNT = 50;
 
-    const placements = try allocator.alloc(root.Placement, 10);
+    const placements = try allocator.alloc(root.Placement, HEIGHT * 10 / 4);
     defer allocator.free(placements);
 
     var rand = std.Random.DefaultPrng.init(seed);
@@ -353,7 +361,7 @@ fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
         const gamestate = GameState.init(bag, engine.kicks.srs);
 
         // Optimize for 4 line PCs
-        const solution = pc.findPc(allocator, gamestate, nn, 4, placements) catch |e| {
+        const solution = pc.findPc(allocator, gamestate, nn, HEIGHT, placements) catch |e| {
             if (e != pc.FindPcError.SolutionTooLong) {
                 return e;
             } else {

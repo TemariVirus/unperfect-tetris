@@ -1,5 +1,70 @@
 # perfect-tetris
 
+Blazingly fast Tetris perfect clear solver.
+
+## Run
+
+```bash
+zig build run
+```
+
+Finds all perfect clear solutions of a give height from an empty board, and
+saves the solutions to disk.
+
+Settings may be adjusted in the top-level declarations in `src/main.zig`. If
+the height is 4 or less, the `-Dsmall` option may be passed to the compiler for
+a potential speedup.
+
+## Demo
+
+```bash
+zig build demo
+```
+
+Continuously solves perfect clears and displays the solutions in the terminal.
+
+To change the speed of the demo, adjust the `FRAMERATE` constant in `src/demo.zig`.
+
+## Test
+
+```bash
+zig build test
+```
+
+Runs all tests.
+
+## Benchmark
+
+```bash
+zig build bench
+```
+
+Runs the benchmarks.
+
+If the height of the PC benchmark is 4 or less, the `-Dsmall` option may be
+passed to the compiler for a potential speedup.
+
+## Train
+
+```bash
+zig build train
+```
+
+Trains a population of neural networks to solve perfect clears as fast as possible.
+The population is saved at the end of every generation.
+
+Settings may be adjusted in the top-level declarations in `src/train.zig`. If
+the height is 4 or less, the `-Dsmall` option may be passed to the compiler for
+a potential speedup.
+
+## Display
+
+```bash
+zig build display -- PATH
+```
+
+Displays the perfect clear solutions saved at `PATH`.
+
 ## Number of possible next sequences (with hold)*
 
 | length |  non-equivalent |     time     |

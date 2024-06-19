@@ -19,8 +19,13 @@ const NN = root.NN;
 const pc = root.pc;
 const Placement = root.Placement;
 
+// Height of perfect clears to find
 const HEIGHT = 4;
+comptime {
+    assert(HEIGHT % 2 == 0);
+}
 const NEXT_LEN = HEIGHT * 10 / 4;
+// Number of threads to use
 const THREADS = 6;
 
 const SAVE_DIR = "pc-data/";

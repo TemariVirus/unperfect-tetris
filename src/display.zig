@@ -10,7 +10,6 @@ const Position = engine.pieces.Position;
 const nterm = @import("nterm");
 const View = nterm.View;
 
-const PC_PATH = "pc-data/4.pc";
 // Set max sequence length to 16 to handle up to 6-line PCs.
 const MAX_SEQ_LEN = 16;
 
@@ -18,6 +17,15 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
+
+    var args = try std.process.argsWithAllocator(allocator);
+    _ = args.skip(); // Skip executable name
+    defer args.deinit();
+
+    const pc_path = args.next() orelse {
+        std.debug.print("Please enter a file path", .{});
+        return;
+    };
 
     try nterm.init(
         allocator,
@@ -28,7 +36,7 @@ pub fn main() !void {
     );
     defer nterm.deinit();
 
-    const file = try std.fs.cwd().openFile(PC_PATH, .{});
+    const file = try std.fs.cwd().openFile(pc_path, .{});
     defer file.close();
 
     const reader = file.reader();
