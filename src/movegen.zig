@@ -17,11 +17,13 @@ const NN = root.NN;
 const PieceMask = root.bit_masks.PieceMask;
 const Placement = root.Placement;
 
+const small = @import("options").small;
+
 /// A set of combinations of pieces and their positions, within certain bounds
 /// as defined by `shape`.
 pub const PiecePosSet = struct {
     const width: usize = 10;
-    const height: usize = 6 + 3;
+    const height: usize = if (small) 4 + 3 else 6 + 3;
     const depth: usize = 4;
     const len = width * height * depth;
     const BackingSet = std.StaticBitSet(len);
@@ -110,34 +112,33 @@ pub const PiecePosSet = struct {
     }
 };
 
+// 40 cells * 4 rotations = 160 intermediate placements at most
 // 60 cells * 4 rotations = 240 intermediate placements at most
-const PlacementStack = std.BoundedArray(PiecePosition, 240);
-// Can only be used with 4-line PCs
-// const PiecePosition = packed struct {
-//     facing: Facing,
-//     pos: u6,
+const PlacementStack = std.BoundedArray(PiecePosition, if (small) 160 else 240);
+const PiecePosition = if (small) packed struct {
+    facing: Facing,
+    pos: u6,
 
-//     pub fn pack(piece: Piece, pos: Position) PiecePosition {
-//         const x = pos.x - piece.minX();
-//         const y = pos.y - piece.minY();
-//         return PiecePosition{
-//             .facing = piece.facing,
-//             .pos = @intCast(y * BoardMask.WIDTH + x),
-//         };
-//     }
+    pub fn pack(piece: Piece, pos: Position) PiecePosition {
+        const x = pos.x - piece.minX();
+        const y = pos.y - piece.minY();
+        return PiecePosition{
+            .facing = piece.facing,
+            .pos = @intCast(y * BoardMask.WIDTH + x),
+        };
+    }
 
-//     pub fn unpack(self: PiecePosition, piece_kind: PieceKind) Placement {
-//         const piece = Piece{ .kind = piece_kind, .facing = self.facing };
-//         return .{
-//             .piece = piece,
-//             .pos = .{
-//                 .x = @intCast(self.pos % BoardMask.WIDTH + piece.minX()),
-//                 .y = @intCast(self.pos / BoardMask.WIDTH + piece.minY()),
-//             },
-//         };
-//     }
-// };
-const PiecePosition = packed struct {
+    pub fn unpack(self: PiecePosition, piece_kind: PieceKind) Placement {
+        const piece = Piece{ .kind = piece_kind, .facing = self.facing };
+        return .{
+            .piece = piece,
+            .pos = .{
+                .x = @intCast(self.pos % BoardMask.WIDTH + piece.minX()),
+                .y = @intCast(self.pos / BoardMask.WIDTH + piece.minY()),
+            },
+        };
+    }
+} else packed struct {
     y: i8,
     x: i6,
     facing: Facing,

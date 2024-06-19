@@ -13,13 +13,15 @@ const SevenBag = engine.bags.SevenBag;
 const nterm = @import("nterm");
 const View = nterm.View;
 
-const root = @import("root.zig");
+const root = @import("perfect-tetris");
 const NN = root.NN;
 const pc = root.pc;
 const Placement = root.Placement;
 
+/// Also used as the number of placements/s
 const FRAMERATE = 20;
 const FPS_TIMING_WINDOW = FRAMERATE * 2;
+/// The maximum number of perfect clears to calculate in advance.
 const MAX_PC_QUEUE = 16;
 
 pub fn main() !void {
@@ -48,7 +50,7 @@ pub fn main() !void {
         .height = Player.DISPLAY_H,
     };
     var player = Player.init(
-        "You",
+        "PC Solver",
         SevenBag.init(0),
         kicks.srsPlus,
         settings,
@@ -79,8 +81,10 @@ pub fn main() !void {
 
             placePcPiece(allocator, &player, &pc_queue, &placement_i);
             player.tick(dt, 0, &.{});
-            try player.draw();
+            player.draw();
             nterm.render() catch |err| {
+                // Trying to render after the terminal has been closed results
+                // in an error, in which case stop the program gracefully.
                 if (err == error.NotInitialized) {
                     return;
                 }
@@ -112,6 +116,7 @@ fn placePcPiece(
     game.hardDrop(0, &.{});
     placement_i.* += 1;
 
+    // Start next perfect clear
     if (placement_i.* == placements.len) {
         allocator.free(queue.orderedRemove(0));
         placement_i.* = 0;
@@ -129,7 +134,9 @@ fn pcThread(allocator: Allocator, state: GameState, queue: *SolutionList) !void 
             time.sleep(time.ns_per_ms);
         }
 
-        const placements = try allocator.alloc(Placement, 16);
+        // A 2- or 4-line PC is not always possible. 15 placements is enough
+        // for a 6-line PC.
+        const placements = try allocator.alloc(Placement, 15);
         const solution = try pc.findPc(allocator, game, nn, 0, placements);
         for (solution) |placement| {
             if (game.current.kind != placement.piece.kind) {
@@ -146,4 +153,5 @@ fn pcThread(allocator: Allocator, state: GameState, queue: *SolutionList) !void 
     }
 }
 
+/// Dummy function to satisfy the Player struct.
 fn playSfxDummy(_: engine.player.Sfx) void {}

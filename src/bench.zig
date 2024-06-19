@@ -5,7 +5,7 @@ const engine = @import("engine");
 const GameState = engine.GameState(SevenBag);
 const SevenBag = engine.bags.SevenBag;
 
-const root = @import("root.zig");
+const root = @import("perfect-tetris");
 const NN = root.NN;
 const pc = root.pc;
 

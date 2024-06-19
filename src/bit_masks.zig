@@ -19,6 +19,7 @@ pub const BoardMask = struct {
 
     mask: u64 = 0,
 
+    /// Create a new BoardMask from the engine representation.
     pub fn from(board_mask: BoardMaskEngine) BoardMask {
         var mask: u64 = 0;
         for (0..6) |y| {
@@ -27,21 +28,25 @@ pub const BoardMask = struct {
                 board_mask.rows[y] & ~BoardMaskEngine.EMPTY_ROW,
             ) << @intCast(y * 10) >> 1;
         }
+        // Make sure the space outside the board mask is empty
         for (6..BoardMaskEngine.HEIGHT) |y| {
             assert(board_mask.rows[y] == BoardMaskEngine.EMPTY_ROW);
         }
         return .{ .mask = mask };
     }
 
+    /// Get the bits of a row.
     pub fn row(self: BoardMask, y: u3) u10 {
         assert(y >= 0 and y < HEIGHT);
         return @truncate(self.mask >> (@as(u6, y) * 10));
     }
 
+    /// Convert a x, y coordinate to a bit position in the mask.
     pub fn getShift(pos: Position) i8 {
         return @min(63, pos.y * WIDTH - pos.x);
     }
 
+    /// Check if a piece would collide with the board mask at a given position.
     pub fn collides(self: BoardMask, piece: Piece, pos: Position) bool {
         if (pos.x < piece.minX() or pos.x > piece.maxX() or pos.y < piece.minY()) {
             return true;
@@ -54,6 +59,7 @@ pub const BoardMask = struct {
         return self.mask & (PieceMask.from(piece).mask >> @intCast(-shift)) != 0;
     }
 
+    /// Place a piece on the board mask at a given position.
     pub fn place(self: *BoardMask, piece: PieceMask, pos: Position) void {
         const shift = getShift(pos);
         self.mask |= if (shift > 0)
@@ -67,7 +73,7 @@ pub const BoardMask = struct {
     pub fn clearLines(self: *BoardMask, y: i8) u3 {
         var cleared: u3 = 0;
         var i: usize = @max(0, y);
-        var full_row = (@as(u64, 1) << BoardMask.WIDTH) - 1;
+        var full_row = comptime (@as(u64, 1) << BoardMask.WIDTH) - 1;
         full_row = full_row << @intCast(i * WIDTH);
         while (i + cleared < HEIGHT) {
             if (self.mask & full_row == full_row) {
@@ -95,6 +101,7 @@ pub const PieceMask = struct {
 
     mask: u64,
 
+    /// Gets the PieceMask for a given piece.
     pub fn from(piece: Piece) PieceMask {
         const table = comptime makeAttributeTable(PieceMask, fromRaw);
         return table[@as(u5, @bitCast(piece))];
@@ -104,6 +111,7 @@ pub const PieceMask = struct {
         return fromMask(piece.mask());
     }
 
+    /// Create a new PieceMask from the engine representation.
     pub fn fromMask(piece_mask: PieceMaskEngine) PieceMask {
         var mask: u64 = 0;
         for (0..4) |i| {

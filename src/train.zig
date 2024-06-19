@@ -16,7 +16,7 @@ const zmai = @import("zmai");
 const neat = zmai.genetic.neat;
 const Trainer = neat.Trainer;
 
-const root = @import("root.zig");
+const root = @import("perfect-tetris");
 const NN = root.NN;
 const pc = root.pc;
 
@@ -140,7 +140,7 @@ fn handleExit(sig: c_int) callconv(.C) void {
         const TIMEOUT = 10 * time.ns_per_s;
         const start = time.nanoTimestamp();
 
-        // Set to -1 to signal saves to stop and wait for saves to finish
+        // Set to -1 to signal saves to stop and then wait for saves to finish
         const saving_count = saving_threads.swap(-1, .monotonic);
         while (saving_threads.load(.monotonic) >= -saving_count) {
             // Force stop if saves take too long to finish

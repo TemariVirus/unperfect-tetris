@@ -11,6 +11,7 @@ const nterm = @import("nterm");
 const View = nterm.View;
 
 const PC_PATH = "pc-data/4.pc";
+// Set max sequence length to 16 to handle up to 6-line PCs.
 const MAX_SEQ_LEN = 16;
 
 pub fn main() !void {
@@ -39,6 +40,7 @@ pub fn main() !void {
         var next_len: usize = 0;
         while (next_len < MAX_SEQ_LEN) : (next_len += 1) {
             const p: u3 = @truncate(pack >> @intCast(3 * next_len));
+            // 0b111 is the sentinel value for the end of the sequence.
             if (p == 0b111) {
                 break;
             }
@@ -68,15 +70,15 @@ pub fn main() !void {
             matrix_box.height - 2,
         );
         for (1..next_len) |i| {
-            const byte = try reader.readByte();
+            const placement = try reader.readByte();
 
             if ((holds >> @intCast(i - 1)) & 1 == 1) {
                 std.mem.swap(PieceKind, &pieces[0], &pieces[i]);
             }
-            const facing: Facing = @enumFromInt(@as(u2, @truncate(byte)));
+            const facing: Facing = @enumFromInt(@as(u2, @truncate(placement)));
             const piece = Piece{ .facing = facing, .kind = pieces[i] };
 
-            const canon_pos = byte >> 2;
+            const canon_pos = placement >> 2;
             const x = canon_pos % 10;
             const y = canon_pos / 10;
             const pos = piece.fromCanonicalPosition(.{ .x = @intCast(x), .y = @intCast(y) });
@@ -91,7 +93,8 @@ pub fn main() !void {
     }
 }
 
-pub fn getMinos(piece: Piece) [4]Position {
+/// Get the positions of the minos of a piece relative to the bottom left corner.
+fn getMinos(piece: Piece) [4]Position {
     const mask = piece.mask().rows;
     var minos: [4]Position = undefined;
     var i: usize = 0;
@@ -111,11 +114,31 @@ pub fn getMinos(piece: Piece) [4]Position {
     return minos;
 }
 
-pub fn drawPiece(view: View, piece: Piece, x: i8, y: i8) void {
+fn drawSequence(pieces: []const PieceKind) void {
+    assert(pieces.len <= MAX_SEQ_LEN);
+
+    const WIDTH = 2 * 4 + 2;
+    const box_view = View{
+        .left = nterm.canvasSize().width - WIDTH,
+        .top = 0,
+        .width = WIDTH,
+        .height = @intCast(pieces.len * 3 + 2),
+    };
+    box_view.drawBox(0, 0, box_view.width, box_view.height);
+
+    const box = box_view.sub(1, 1, box_view.width - 2, box_view.height - 2);
+    for (pieces, 0..) |p, i| {
+        const piece = Piece{ .facing = .up, .kind = p };
+        drawPiece(box, piece, 0, @intCast(i * 3));
+    }
+}
+
+fn drawPiece(view: View, piece: Piece, x: i8, y: i8) void {
     const minos = getMinos(piece);
     const color = piece.kind.color();
     for (minos) |mino| {
         const mino_x = x + mino.x;
+        // The y coordinate is flipped when converting to nterm coordinates.
         const mino_y = y + (3 - mino.y);
         _ = view.writeText(
             @intCast(mino_x * 2),
@@ -127,7 +150,8 @@ pub fn drawPiece(view: View, piece: Piece, x: i8, y: i8) void {
     }
 }
 
-pub fn drawMatrixPiece(view: View, row_occupancy: []u8, piece: Piece, x: i8, y: i8) void {
+/// Draw a piece in the matrix view, and update the row occupancy.
+fn drawMatrixPiece(view: View, row_occupancy: []u8, piece: Piece, x: i8, y: i8) void {
     const minos = getMinos(piece);
     const color = piece.kind.color();
     for (minos) |mino| {
@@ -135,6 +159,7 @@ pub fn drawMatrixPiece(view: View, row_occupancy: []u8, piece: Piece, x: i8, y: 
             var cleared: i8 = 0;
             var top = y + mino.y;
             var i: usize = 0;
+            // Any clears below the mino will push it up.
             while (i <= top) : (i += 1) {
                 if (row_occupancy[i] >= 10) {
                     cleared += 1;
@@ -145,6 +170,7 @@ pub fn drawMatrixPiece(view: View, row_occupancy: []u8, piece: Piece, x: i8, y: 
         };
 
         const mino_x = x + mino.x;
+        // The y coordinate is flipped when converting to nterm coordinates.
         const mino_y = 19 - y - mino.y - cleared;
         _ = view.writeText(
             @intCast(mino_x * 2),
@@ -155,23 +181,5 @@ pub fn drawMatrixPiece(view: View, row_occupancy: []u8, piece: Piece, x: i8, y: 
         );
 
         row_occupancy[@intCast(19 - mino_y)] += 1;
-    }
-}
-
-pub fn drawSequence(pieces: []const PieceKind) void {
-    assert(pieces.len <= MAX_SEQ_LEN);
-
-    const box_view = View{
-        .left = nterm.canvasSize().width - 2 * 4 - 2,
-        .top = 0,
-        .width = 2 * 4 + 2,
-        .height = @intCast(pieces.len * 3 + 2),
-    };
-    box_view.drawBox(0, 0, box_view.width, box_view.height);
-
-    const box = box_view.sub(1, 1, box_view.width - 2, box_view.height - 2);
-    for (pieces, 0..) |p, i| {
-        const piece = Piece{ .facing = .up, .kind = p };
-        drawPiece(box, piece, 0, @intCast(i * 3));
     }
 }

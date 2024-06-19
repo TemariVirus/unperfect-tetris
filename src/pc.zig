@@ -60,18 +60,22 @@ pub fn findPc(
     }
 
     var pieces_needed = if (empty_cells % 4 == 2)
+        // If the number of empty cells is not a multiple of 4, we need to fill
+        // an extra so that it becomes a multiple of 4
+        // 2 + 10 = 12 which is a multiple of 4
         (empty_cells + 10) / 4
     else
         empty_cells / 4;
+    // Don't return an empty solution
     if (pieces_needed == 0) {
         pieces_needed = 5;
     }
 
-    var cache = NodeSet.init(allocator);
-    defer cache.deinit();
-
     const pieces = try getPieces(allocator, game, placements.len + 1);
     defer allocator.free(pieces);
+
+    var cache = NodeSet.init(allocator);
+    defer cache.deinit();
 
     // 20 is the lowest common multiple of the width of the playfield (10) and the
     // number of cells in a piece (4). 20 / 4 = 5 extra pieces for each bigger
@@ -82,16 +86,15 @@ pub fn findPc(
             continue;
         }
 
+        // Pre-allocate a queue for each placement
         const queues = try allocator.alloc(movegen.MoveQueue, pieces_needed);
         for (0..queues.len) |i| {
             queues[i] = movegen.MoveQueue.init(allocator, {});
         }
-        defer {
-            for (queues) |queue| {
-                queue.deinit();
-            }
-            allocator.free(queues);
-        }
+        defer allocator.free(queues);
+        defer for (queues) |queue| {
+            queue.deinit();
+        };
 
         cache.clearRetainingCapacity();
         if (findPcInner(
@@ -111,7 +114,8 @@ pub fn findPc(
     return FindPcError.SolutionTooLong;
 }
 
-fn getPieces(allocator: Allocator, game: GameState, pieces_count: usize) ![]PieceKind {
+/// Extracts `pieces_count` pieces from the game state, in the format [current, hold, next...].
+pub fn getPieces(allocator: Allocator, game: GameState, pieces_count: usize) ![]PieceKind {
     if (pieces_count == 0) {
         return &.{};
     }
@@ -134,6 +138,7 @@ fn getPieces(allocator: Allocator, game: GameState, pieces_count: usize) ![]Piec
         pieces[i] = piece;
     }
 
+    // If next pieces are not enough, fill the rest from the bag
     var bag_copy = game.bag;
     for (@min(pieces.len, start + game.next_pieces.len)..pieces.len) |i| {
         pieces[i] = bag_copy.next();
@@ -222,7 +227,7 @@ fn findPcInner(
             return true;
         }
     }
-    // Unhold if held an odd number of times
+    // Unhold if held an odd number of times so that pieces are in the same order
     if (held_odd_times) {
         std.mem.swap(PieceKind, &pieces[0], &pieces[1]);
     }
@@ -230,9 +235,13 @@ fn findPcInner(
     return false;
 }
 
+/// A fast check to see if a perfect clear is possible by making sure every empty
 /// "segment" of the playfield has a multiple of 4 cells. Assumes the total number
 /// of empty cells is a multiple of 4.
 fn isPcPossible(playfield: BoardMask, max_height: u3) bool {
+    assert(playfield.mask >> (@as(u6, max_height) * BoardMask.WIDTH) == 0);
+    assert((@as(u6, max_height) * BoardMask.WIDTH - @popCount(playfield.mask)) % 4 == 0);
+
     var walls: u64 = (1 << BoardMask.WIDTH) - 1;
     for (0..max_height) |y| {
         const row = playfield.row(@intCast(y));

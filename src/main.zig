@@ -1,7 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
-const AtomicInt = std.atomic.Value(i32);
 const fs = std.fs;
 const Mutex = Thread.Mutex;
 const os = std.os;
@@ -14,25 +13,27 @@ const GameState = engine.GameState(SevenBag);
 const PieceKind = engine.pieces.PieceKind;
 const SevenBag = engine.bags.SevenBag;
 
-const root = @import("root.zig");
+const root = @import("perfect-tetris");
 const SequenceIterator = root.next.SequenceIterator;
 const NN = root.NN;
 const pc = root.pc;
 const Placement = root.Placement;
 
 const HEIGHT = 4;
-const NEXT_LEN = HEIGHT * 5 / 2;
+const NEXT_LEN = HEIGHT * 10 / 4;
 const THREADS = 6;
 
 const SAVE_DIR = "pc-data/";
-const PC_PATH = SAVE_DIR ++ "4.pc";
-const COUNT_PATH = SAVE_DIR ++ "4.count";
+const PC_PATH = SAVE_DIR ++ std.fmt.comptimePrint("{}", .{HEIGHT}) ++ ".pc";
+const COUNT_PATH = SAVE_DIR ++ std.fmt.comptimePrint("{}", .{HEIGHT}) ++ ".count";
 
-var saving_threads = AtomicInt.init(0);
+// Count of threads saving to disk to make sure all threads finish saving before exiting.
+var saving_threads = std.atomic.Value(i32).init(0);
 
-/// Thread-safe ring buffer for storing and writing solutions to disk.
+/// Thread-safe ring buffer for distributing work, and storing and writing
+/// solutions to disk.
 const SolutionBuffer = struct {
-    const CHUNK_SIZE = 64;
+    const CHUNK_SIZE = 128;
     const CHUNKS = THREADS * 4;
     pub const Iterator = SequenceIterator(NEXT_LEN + 1, @min(7, NEXT_LEN));
     pub const AtomicLength = std.atomic.Value(isize);
@@ -40,16 +41,17 @@ const SolutionBuffer = struct {
     mutex: Mutex = .{},
     solved: u64 = 0,
     count: u64 = 0,
-    new_count: u64 = 0,
+    last_count: u64 = 0,
     timer: Timer,
     iter: Iterator,
 
-    write_ptr: usize = 0,
-    read_ptr: usize = 0,
+    write_idx: usize = 0,
+    read_idx: usize = 0,
     lengths: [CHUNKS]AtomicLength = [_]AtomicLength{AtomicLength.init(-1)} ** CHUNKS,
     sequences: [CHUNKS][CHUNK_SIZE]u48,
     solutions: [CHUNKS][CHUNK_SIZE][NEXT_LEN]Placement,
 
+    /// Initializes a new SolutionBuffer with the given allocator.
     pub fn init(allocator: Allocator) !SolutionBuffer {
         return .{
             .timer = try Timer.start(),
@@ -59,23 +61,30 @@ const SolutionBuffer = struct {
         };
     }
 
+    /// Loads a SolutionBuffer with data from disk or initializes a new one if
+    /// the files don't exist.
     pub fn loadOrInit(allocator: Allocator, pc_path: []const u8, count_path: []const u8) !SolutionBuffer {
         var self = try init(allocator);
 
-        // Get # of solves
+        // Get number of solves
         blk: {
             const file = fs.cwd().openFile(pc_path, .{}) catch |e| {
+                // Leave self.solved as 0 if the file doesn't exist
                 if (e != fs.File.OpenError.FileNotFound) {
                     return e;
                 }
                 break :blk;
             };
+            defer file.close();
+
             const stat = try file.stat();
             const SOLUTION_SIZE = 8 + NEXT_LEN;
             self.solved = @divExact(stat.size, SOLUTION_SIZE);
         }
 
+        // Get count
         const file = fs.cwd().openFile(count_path, .{}) catch |e| {
+            // Leave self.conut as 0 if the file doesn't exist
             if (e != fs.File.OpenError.FileNotFound) {
                 return e;
             }
@@ -85,9 +94,11 @@ const SolutionBuffer = struct {
 
         const max_len = comptime std.math.log10_int(@as(u64, std.math.maxInt(u64))) + 1;
         var buf = [_]u8{undefined} ** max_len;
-        const len = try file.readAll(&buf);
+        const buf_len = try file.readAll(&buf);
 
-        self.count = try std.fmt.parseInt(u64, buf[0..len], 10);
+        self.count = try std.fmt.parseInt(u64, buf[0..buf_len], 10);
+        self.last_count = self.count;
+        // Sync iterator state with count
         for (0..self.count) |_| {
             _ = try self.iter.next();
         }
@@ -110,6 +121,7 @@ const SolutionBuffer = struct {
         return index % (2 * CHUNKS);
     }
 
+    /// Gets the next available chunk of sequences to solve.
     pub fn nextChunk(
         self: *SolutionBuffer,
     ) !?struct { *AtomicLength, []u48, [][NEXT_LEN]Placement } {
@@ -133,8 +145,7 @@ const SolutionBuffer = struct {
             return null;
         }
 
-        const index = mask(self.write_ptr);
-
+        const index = mask(self.write_idx);
         self.lengths[index].store(-1, .monotonic);
 
         var len: usize = 0;
@@ -146,7 +157,7 @@ const SolutionBuffer = struct {
             }
         }
 
-        self.write_ptr = mask2(self.write_ptr + 1);
+        self.write_idx = mask2(self.write_idx + 1);
         return .{
             &self.lengths[index],
             self.sequences[index][0..len],
@@ -154,6 +165,8 @@ const SolutionBuffer = struct {
         };
     }
 
+    /// Write all non-blocked finished chunks to disk, and free space in the
+    /// ring buffer.
     pub fn writeDoneChunks(
         self: *SolutionBuffer,
         pc_path: []const u8,
@@ -163,45 +176,50 @@ const SolutionBuffer = struct {
         defer self.mutex.unlock();
 
         var wrote = false;
-        while (!self.isEmpty() and self.lengths[mask(self.read_ptr)].load(.monotonic) >= 0) {
-            const len: usize = @intCast(self.lengths[mask(self.read_ptr)].load(.monotonic));
+        // A negative length indicates that the chunk is not done yet
+        while (!self.isEmpty() and self.lengths[mask(self.read_idx)].load(.monotonic) >= 0) {
+            const len: usize = @intCast(self.lengths[mask(self.read_idx)].load(.monotonic));
             self.solved += len;
-            self.new_count += CHUNK_SIZE;
+            // NOTE: for the last chunk, the count value may become larger than
+            // it actually is. This isn't an issue as the iterator is already exhausted.
+            self.count += CHUNK_SIZE;
             try saveAppend(
                 pc_path,
                 count_path,
-                self.count + self.new_count,
-                self.sequences[mask(self.read_ptr)][0..len],
+                self.count,
+                self.sequences[mask(self.read_idx)][0..len],
                 NEXT_LEN,
-                self.solutions[mask(self.read_ptr)][0..len],
+                self.solutions[mask(self.read_idx)][0..len],
             );
 
             wrote = true;
-            self.read_ptr = mask2(self.read_ptr + 1);
+            self.read_idx = mask2(self.read_idx + 1);
         }
 
+        // Only print if at least one chunk was written
         if (wrote) {
             std.debug.print(
                 "Solved {} out of {}\n",
-                .{ self.solved, self.count + self.new_count },
+                .{ self.solved, self.count },
             );
-            if (self.new_count >= THREADS * 256) {
+
+            const count = self.count - self.last_count;
+            if (count >= THREADS * 256) {
                 std.debug.print(
-                    "Time per solve: {}\n\n",
-                    .{std.fmt.fmtDuration(self.timer.lap() / self.new_count)},
+                    "Time per sequence per thread: {}\n\n",
+                    .{std.fmt.fmtDuration(self.timer.lap() * THREADS / count)},
                 );
-                self.count += self.new_count;
-                self.new_count = 0;
+                self.last_count = self.count;
             }
         }
     }
 
     fn isEmpty(self: SolutionBuffer) bool {
-        return self.write_ptr == self.read_ptr;
+        return self.write_idx == self.read_idx;
     }
 
     fn isFull(self: SolutionBuffer) bool {
-        return mask2(self.write_ptr + CHUNKS) == self.read_ptr;
+        return mask2(self.write_idx + CHUNKS) == self.read_idx;
     }
 };
 
@@ -254,7 +272,7 @@ fn setupExitHandler() void {
 
 fn handleExit(sig: c_int) callconv(.C) void {
     if (std.mem.containsAtLeast(c_int, &handle_signals, 1, &.{sig})) {
-        // Set to -1 to signal saves to stop and wait for saves to finish
+        // Set to -1 to signal saves to stop and then wait for saves to finish
         const saving_count = saving_threads.swap(-1, .monotonic);
         while (saving_threads.load(.monotonic) >= -saving_count) {
             std.time.sleep(std.time.ns_per_ms);
@@ -301,6 +319,7 @@ fn solveThread(buf: *SolutionBuffer) !void {
     }
 }
 
+/// Pack a sequence of pieces into a u48.
 fn packSequence(pieces: []const PieceKind) u48 {
     assert(pieces.len <= 48 / 3);
 
@@ -313,6 +332,7 @@ fn packSequence(pieces: []const PieceKind) u48 {
     return seq;
 }
 
+/// Unpack a u48 into a sequence of pieces.
 fn unpackSequence(seq: u48, comptime len: usize) [len]PieceKind {
     var pieces = [_]PieceKind{undefined} ** len;
     for (0..pieces.len) |i| {
@@ -365,9 +385,12 @@ fn saveAppend(
             var holds: u16 = 0;
             var placements = [_]u8{0} ** solution_len;
 
-            var hold: PieceKind = @enumFromInt(@as(u3, @truncate(seq)));
-            var current: PieceKind = @enumFromInt(@as(u3, @truncate(seq >> 3)));
+            const sequence = unpackSequence(seq, NEXT_LEN + 1);
+
+            var hold = sequence[0];
+            var current = sequence[1];
             for (sol, 0..) |placement, i| {
+                // Use canonical position so that the position is always in the range [0, 59]
                 const canon_pos = placement.piece.canonicalPosition(placement.pos);
                 const pos = canon_pos.y * 10 + canon_pos.x;
                 assert(pos < 60);
@@ -379,7 +402,7 @@ fn saveAppend(
                 }
                 // Only update current if it's not the last piece
                 if (i < sol.len - 1) {
-                    current = @enumFromInt(@as(u3, @truncate(seq >> @intCast(3 * i + 6))));
+                    current = sequence[i + 2];
                 }
             }
 

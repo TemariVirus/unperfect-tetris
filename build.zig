@@ -10,13 +10,32 @@ pub fn build(b: *Build) void {
         .target = target,
         .optimize = optimize,
     }).module("engine");
-    const nterm_module = engine_module.import_table.get("nterm").?;
 
     // zmai dependency
     const zmai_module = b.dependency("zmai", .{
         .target = target,
         .optimize = optimize,
     }).module("zmai");
+
+    // Expose the library root
+    const root_module = b.addModule("perfect-tetris", .{
+        .root_source_file = lazyPath(b, "src/root.zig"),
+        .imports = &.{
+            .{ .name = "engine", .module = engine_module },
+            .{ .name = "nterm", .module = engine_module.import_table.get("nterm").? },
+            .{ .name = "zmai", .module = zmai_module },
+        },
+    });
+
+    // Add options
+    const small = b.option(
+        bool,
+        "small",
+        "Optimise for perfect clears with 4 or fewer lines",
+    ) orelse false;
+    const options = b.addOptions();
+    options.addOption(bool, "small", small);
+    root_module.addOptions("options", options);
 
     // Add NN files
     const install_NNs = b.addInstallDirectory(.{
@@ -25,20 +44,19 @@ pub fn build(b: *Build) void {
         .install_subdir = "NNs",
     });
 
-    buildExe(b, target, optimize, engine_module, zmai_module, install_NNs);
-    buildDemo(b, target, optimize, engine_module, nterm_module, zmai_module, install_NNs);
-    buildTests(b, engine_module, zmai_module);
-    buildBench(b, target, engine_module, zmai_module);
-    buildTrain(b, target, optimize, engine_module, zmai_module);
-    buildDisplay(b, target, optimize, engine_module, nterm_module);
+    buildExe(b, target, optimize, root_module, install_NNs);
+    buildDemo(b, target, optimize, root_module, install_NNs);
+    buildTests(b, root_module);
+    buildBench(b, target, root_module);
+    buildTrain(b, target, optimize, root_module);
+    buildDisplay(b, target, optimize, root_module);
 }
 
 fn buildExe(
     b: *Build,
     target: Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
-    engine_module: *Build.Module,
-    zmai_module: *Build.Module,
+    root_module: *Build.Module,
     install_NNs: *Build.Step.InstallDir,
 ) void {
     const exe = b.addExecutable(.{
@@ -47,8 +65,9 @@ fn buildExe(
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.addImport("engine", engine_module);
-    exe.root_module.addImport("zmai", zmai_module);
+    exe.root_module.addImport("perfect-tetris", root_module);
+    exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
+    exe.root_module.addImport("zmai", root_module.import_table.get("zmai").?);
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
@@ -64,9 +83,7 @@ fn buildDemo(
     b: *Build,
     target: Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
-    engine_module: *Build.Module,
-    nterm_module: *Build.Module,
-    zmai_module: *Build.Module,
+    root_module: *Build.Module,
     install_NNs: *Build.Step.InstallDir,
 ) void {
     const demo_exe = b.addExecutable(.{
@@ -75,9 +92,10 @@ fn buildDemo(
         .target = target,
         .optimize = optimize,
     });
-    demo_exe.root_module.addImport("engine", engine_module);
-    demo_exe.root_module.addImport("nterm", nterm_module);
-    demo_exe.root_module.addImport("zmai", zmai_module);
+    demo_exe.root_module.addImport("perfect-tetris", root_module);
+    demo_exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
+    demo_exe.root_module.addImport("nterm", root_module.import_table.get("nterm").?);
+    demo_exe.root_module.addImport("zmai", root_module.import_table.get("zmai").?);
 
     const run_cmd = b.addRunArtifact(demo_exe);
     run_cmd.step.dependOn(b.getInstallStep());
@@ -92,16 +110,13 @@ fn buildDemo(
     install.step.dependOn(&install_NNs.step);
 }
 
-fn buildTests(
-    b: *Build,
-    engine_module: *Build.Module,
-    zmai_module: *Build.Module,
-) void {
+fn buildTests(b: *Build, root_module: *Build.Module) void {
     const lib_tests = b.addTest(.{
         .root_source_file = lazyPath(b, "src/root.zig"),
     });
-    lib_tests.root_module.addImport("engine", engine_module);
-    lib_tests.root_module.addImport("zmai", zmai_module);
+    lib_tests.root_module.addImport("options", root_module.import_table.get("options").?);
+    lib_tests.root_module.addImport("engine", root_module.import_table.get("engine").?);
+    lib_tests.root_module.addImport("zmai", root_module.import_table.get("zmai").?);
 
     const run_lib_tests = b.addRunArtifact(lib_tests);
     const test_step = b.step("test", "Run library tests");
@@ -111,8 +126,7 @@ fn buildTests(
 fn buildBench(
     b: *Build,
     target: Build.ResolvedTarget,
-    engine_module: *Build.Module,
-    zmai_module: *Build.Module,
+    root_module: *Build.Module,
 ) void {
     const bench_exe = b.addExecutable(.{
         .name = "benchmarks",
@@ -120,8 +134,9 @@ fn buildBench(
         .target = target,
         .optimize = .ReleaseFast,
     });
-    bench_exe.root_module.addImport("engine", engine_module);
-    bench_exe.root_module.addImport("zmai", zmai_module);
+    bench_exe.root_module.addImport("perfect-tetris", root_module);
+    bench_exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
+    bench_exe.root_module.addImport("zmai", root_module.import_table.get("zmai").?);
 
     const bench_cmd = b.addRunArtifact(bench_exe);
     bench_cmd.step.dependOn(b.getInstallStep());
@@ -136,8 +151,7 @@ fn buildTrain(
     b: *Build,
     target: Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
-    engine_module: *Build.Module,
-    zmai_module: *Build.Module,
+    root_module: *Build.Module,
 ) void {
     const train_exe = b.addExecutable(.{
         .name = "nn-train",
@@ -145,8 +159,9 @@ fn buildTrain(
         .target = target,
         .optimize = optimize,
     });
-    train_exe.root_module.addImport("engine", engine_module);
-    train_exe.root_module.addImport("zmai", zmai_module);
+    train_exe.root_module.addImport("perfect-tetris", root_module);
+    train_exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
+    train_exe.root_module.addImport("zmai", root_module.import_table.get("zmai").?);
 
     const train_cmd = b.addRunArtifact(train_exe);
     train_cmd.step.dependOn(b.getInstallStep());
@@ -164,8 +179,7 @@ fn buildDisplay(
     b: *Build,
     target: Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
-    engine_module: *Build.Module,
-    nterm_module: *Build.Module,
+    root_module: *Build.Module,
 ) void {
     const display_exe = b.addExecutable(.{
         .name = "display",
@@ -173,8 +187,9 @@ fn buildDisplay(
         .target = target,
         .optimize = optimize,
     });
-    display_exe.root_module.addImport("engine", engine_module);
-    display_exe.root_module.addImport("nterm", nterm_module);
+    display_exe.root_module.addImport("perfect-tetris", root_module);
+    display_exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
+    display_exe.root_module.addImport("nterm", root_module.import_table.get("nterm").?);
 
     const run_cmd = b.addRunArtifact(display_exe);
     run_cmd.step.dependOn(b.getInstallStep());
