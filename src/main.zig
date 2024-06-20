@@ -38,9 +38,9 @@ var saving_threads = std.atomic.Value(i32).init(0);
 /// Thread-safe ring buffer for distributing work, and storing and writing
 /// solutions to disk.
 const SolutionBuffer = struct {
-    const CHUNK_SIZE = 128;
-    const CHUNKS = THREADS * 4;
-    pub const Iterator = SequenceIterator(NEXT_LEN + 1, @min(7, NEXT_LEN));
+    const CHUNK_SIZE = 32;
+    const CHUNKS = THREADS * 12;
+    pub const Iterator = SequenceIterator(NEXT_LEN + 1, @min(6, NEXT_LEN));
     pub const AtomicLength = std.atomic.Value(isize);
 
     mutex: Mutex = .{},
@@ -209,7 +209,7 @@ const SolutionBuffer = struct {
             );
 
             const count = self.count - self.last_count;
-            if (count >= THREADS * 256) {
+            if (count >= THREADS * 512) {
                 std.debug.print(
                     "Time per sequence per thread: {}\n\n",
                     .{std.fmt.fmtDuration(self.timer.lap() * THREADS / count)},
@@ -333,7 +333,7 @@ fn packSequence(pieces: []const PieceKind) u48 {
         seq |= @as(u48, @intFromEnum(piece)) << @intCast(3 * i);
     }
     // Fill remaining bits with 1s
-    seq |= ~@as(u48, 0) << @intCast(3 * pieces.len);
+    seq |= @truncate(~@as(u64, 0) << @intCast(3 * pieces.len));
     return seq;
 }
 

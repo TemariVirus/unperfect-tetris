@@ -325,7 +325,6 @@ pub fn DigitsIterator(comptime len: usize) type {
     };
 }
 
-// TODO: Fix extra 0s in sequences when len == 16
 /// Iterates through all non-equivalent next sequences (including the hold) of length
 /// `len`. 'unlocked' is used to control the way iterations are chunked. A higher
 /// value uses more memory but reduces redundant computations.
