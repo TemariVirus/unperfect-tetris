@@ -2,6 +2,10 @@
 
 Blazingly fast Tetris perfect clear solver.
 
+## Zig Version
+
+0.13.0
+
 ## Run
 
 ```bash
