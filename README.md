@@ -65,6 +65,14 @@ zig build display -- PATH
 
 Displays the perfect clear solutions saved at `PATH`.
 
+## Validate
+
+```bash
+zig build validate -- PATH
+```
+
+Validates the perfect clear solutions saved at `PATH`.
+
 ## Number of possible next sequences (with hold)*
 
 | length |  non-equivalent |     time     |

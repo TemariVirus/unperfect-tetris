@@ -50,6 +50,7 @@ pub fn build(b: *Build) void {
     buildBench(b, target, root_module);
     buildTrain(b, target, optimize, root_module);
     buildDisplay(b, target, optimize, root_module);
+    buildValidate(b, target, optimize, root_module);
 }
 
 fn buildExe(
@@ -201,6 +202,33 @@ fn buildDisplay(
 
     const install = b.addInstallArtifact(display_exe, .{});
     display_step.dependOn(&install.step);
+}
+
+fn buildValidate(
+    b: *Build,
+    target: Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    root_module: *Build.Module,
+) void {
+    const validate_exe = b.addExecutable(.{
+        .name = "validate",
+        .root_source_file = lazyPath(b, "src/validate.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    validate_exe.root_module.addImport("perfect-tetris", root_module);
+    validate_exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
+
+    const run_cmd = b.addRunArtifact(validate_exe);
+    run_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
+    }
+    const validate_step = b.step("validate", "Validate PC solutions");
+    validate_step.dependOn(&run_cmd.step);
+
+    const install = b.addInstallArtifact(validate_exe, .{});
+    validate_step.dependOn(&install.step);
 }
 
 fn lazyPath(b: *Build, path: []const u8) Build.LazyPath {

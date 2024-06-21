@@ -41,13 +41,13 @@ pub fn main() !void {
 
     const reader = file.reader();
     while (try file.getPos() < try file.getEndPos()) {
-        const pack = try reader.readInt(u48, .little);
+        const seq = try reader.readInt(u48, .little);
         const holds = try reader.readInt(u16, .little);
 
         var pieces = [_]PieceKind{undefined} ** MAX_SEQ_LEN;
         var next_len: usize = 0;
         while (next_len < MAX_SEQ_LEN) : (next_len += 1) {
-            const p: u3 = @truncate(pack >> @intCast(3 * next_len));
+            const p: u3 = @truncate(seq >> @intCast(3 * next_len));
             // 0b111 is the sentinel value for the end of the sequence.
             if (p == 0b111) {
                 break;
