@@ -14,8 +14,8 @@ pub fn main() !void {
     getFeaturesBenchmark();
 }
 
-// Mean: 29.688ms
-// Max: 479.98ms
+// Mean: 28.869ms
+// Max: 442.807ms
 pub fn pcBenchmark(comptime height: u8) !void {
     const RUN_COUNT = 100;
 
