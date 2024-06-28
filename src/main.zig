@@ -182,6 +182,11 @@ const SolutionBuffer = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
 
+        // Check if there's anything to write
+        if (self.isEmpty() or self.lengths[mask(self.read_idx)].load(.monotonic) < 0) {
+            return false;
+        }
+
         // Multiple threads can save at the same time, but no threads should start
         // saving when we are exiting
         if (saving_threads.load(.monotonic) < 0) {
