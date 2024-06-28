@@ -28,9 +28,7 @@ const NEXT_LEN = HEIGHT * 10 / 4;
 // Number of threads to use
 const THREADS = 6;
 
-const SAVE_DIR = "pc-data/";
-const PC_PATH = SAVE_DIR ++ std.fmt.comptimePrint("{}", .{HEIGHT}) ++ ".pc";
-const COUNT_PATH = SAVE_DIR ++ std.fmt.comptimePrint("{}", .{HEIGHT}) ++ ".count";
+const SAVE_PATH = std.fmt.comptimePrint("pc-data/{}", .{HEIGHT});
 
 // Count of threads saving to disk to make sure all threads finish saving before exiting.
 var saving_threads = std.atomic.Value(i32).init(0);
@@ -38,8 +36,8 @@ var saving_threads = std.atomic.Value(i32).init(0);
 /// Thread-safe ring buffer for distributing work, and storing and writing
 /// solutions to disk.
 const SolutionBuffer = struct {
-    const CHUNK_SIZE = 32;
-    const CHUNKS = THREADS * 12;
+    const CHUNK_SIZE = 64;
+    const CHUNKS = THREADS * 8;
     pub const Iterator = SequenceIterator(NEXT_LEN + 1, @min(6, NEXT_LEN));
     pub const AtomicLength = std.atomic.Value(isize);
 
@@ -68,7 +66,12 @@ const SolutionBuffer = struct {
 
     /// Loads a SolutionBuffer with data from disk or initializes a new one if
     /// the files don't exist.
-    pub fn loadOrInit(allocator: Allocator, pc_path: []const u8, count_path: []const u8) !SolutionBuffer {
+    pub fn loadOrInit(allocator: Allocator, path: []const u8) !SolutionBuffer {
+        const pc_path = try std.fmt.allocPrint(allocator, "{s}.pc", .{path});
+        defer allocator.free(pc_path);
+        const count_path = try std.fmt.allocPrint(allocator, "{s}.count", .{path});
+        defer allocator.free(count_path);
+
         var self = try init(allocator);
 
         // Get number of solves
@@ -171,14 +174,46 @@ const SolutionBuffer = struct {
     }
 
     /// Write all non-blocked finished chunks to disk, and free space in the
-    /// ring buffer.
+    /// ring buffer. Returns true if any chunks were written.
     pub fn writeDoneChunks(
         self: *SolutionBuffer,
-        pc_path: []const u8,
-        count_path: []const u8,
-    ) !void {
+        path: []const u8,
+    ) !bool {
         self.mutex.lock();
         defer self.mutex.unlock();
+
+        // Multiple threads can save at the same time, but no threads should start
+        // saving when we are exiting
+        if (saving_threads.load(.monotonic) < 0) {
+            return false;
+        }
+
+        _ = saving_threads.fetchAdd(1, .monotonic);
+        defer _ = saving_threads.fetchSub(1, .monotonic);
+
+        const allocator = self.iter.seen.allocator;
+
+        const pc_file = blk: {
+            const pc_path = try std.fmt.allocPrint(allocator, "{s}.pc", .{path});
+            defer allocator.free(pc_path);
+
+            break :blk fs.cwd().openFile(
+                pc_path,
+                .{ .mode = .write_only },
+            ) catch |e| {
+                // Create file if it doesn't exist
+                if (e != fs.File.OpenError.FileNotFound) {
+                    return e;
+                }
+                try fs.cwd().makePath(fs.path.dirname(pc_path) orelse return error.InvalidPath);
+                break :blk try fs.cwd().createFile(pc_path, .{});
+            };
+        };
+        defer pc_file.close();
+        // Seek to end to append to file
+        try pc_file.seekFromEnd(0);
+        var buf_writer = std.io.bufferedWriter(pc_file.writer());
+        const pc_writer = buf_writer.writer();
 
         var wrote = false;
         // A negative length indicates that the chunk is not done yet
@@ -188,34 +223,97 @@ const SolutionBuffer = struct {
             // NOTE: for the last chunk, the count value may become larger than
             // it actually is. This isn't an issue as the iterator is already exhausted.
             self.count += CHUNK_SIZE;
-            try saveAppend(
-                pc_path,
-                count_path,
-                self.count,
-                self.sequences[mask(self.read_idx)][0..len],
-                NEXT_LEN,
-                self.solutions[mask(self.read_idx)][0..len],
-            );
+            try self.saveAppend(pc_writer, len);
 
             wrote = true;
             self.read_idx = mask2(self.read_idx + 1);
         }
+        try buf_writer.flush();
 
-        // Only print if at least one chunk was written
-        if (wrote) {
-            std.debug.print(
-                "Solved {} out of {}\n",
-                .{ self.solved, self.count },
-            );
+        const count_path = try std.fmt.allocPrint(allocator, "{s}.count", .{path});
+        defer allocator.free(count_path);
+        var count_file = try fs.cwd().atomicFile(count_path, .{ .make_path = true });
+        defer count_file.deinit();
 
-            const count = self.count - self.last_count;
-            if (count >= THREADS * 512) {
-                std.debug.print(
-                    "Time per sequence per thread: {}\n\n",
-                    .{std.fmt.fmtDuration(self.timer.lap() * THREADS / count)},
-                );
-                self.last_count = self.count;
+        try count_file.file.writer().print("{d}", .{self.count});
+        try count_file.finish();
+
+        return wrote;
+    }
+
+    fn saveAppend(
+        self: *SolutionBuffer,
+        pc_writer: anytype,
+        len: usize,
+    ) !void {
+        assert(NEXT_LEN <= 16);
+
+        for (
+            self.sequences[mask(self.read_idx)][0..len],
+            self.solutions[mask(self.read_idx)][0..len],
+        ) |seq, sol| {
+            var holds: u16 = 0;
+            var placements = [_]u8{0} ** NEXT_LEN;
+
+            const sequence = unpackSequence(seq, NEXT_LEN + 1);
+
+            var hold = sequence[0];
+            var current = sequence[1];
+            for (sol, 0..) |placement, i| {
+                // Use canonical position so that the position is always in the range [0, 59]
+                const canon_pos = placement.piece.canonicalPosition(placement.pos);
+                const pos = canon_pos.y * 10 + canon_pos.x;
+                assert(pos < 60);
+                placements[i] = @intFromEnum(placement.piece.facing) | (@as(u8, pos) << 2);
+
+                if (current != placement.piece.kind) {
+                    holds |= @as(u16, 1) << @intCast(i);
+                    hold = current;
+                }
+                // Only update current if it's not the last piece
+                if (i < sol.len - 1) {
+                    current = sequence[i + 2];
+                }
             }
+
+            try pc_writer.writeInt(u48, seq, .little);
+            try pc_writer.writeInt(u16, holds, .little);
+            try pc_writer.writeAll(&placements);
+        }
+    }
+
+    pub fn printStatsAndBackup(self: *SolutionBuffer, path: []const u8) !void {
+        std.debug.print(
+            "Solved {} out of {}\n",
+            .{ self.solved, self.count },
+        );
+
+        const count = self.count - self.last_count;
+        if (count >= THREADS * 512) {
+            // Create backup files
+            const allocator = self.iter.seen.allocator;
+            {
+                const pc_path = try std.fmt.allocPrint(allocator, "{s}.pc", .{path});
+                defer allocator.free(pc_path);
+                const backup_path = try std.fmt.allocPrint(allocator, "{s}-backup.pc", .{path});
+                defer allocator.free(backup_path);
+
+                try fs.cwd().copyFile(pc_path, fs.cwd(), backup_path, .{});
+            }
+            {
+                const count_path = try std.fmt.allocPrint(allocator, "{s}.count", .{path});
+                defer allocator.free(count_path);
+                const backup_path = try std.fmt.allocPrint(allocator, "{s}-backup.count", .{path});
+                defer allocator.free(backup_path);
+
+                try fs.cwd().copyFile(count_path, fs.cwd(), backup_path, .{});
+            }
+
+            std.debug.print(
+                "Time per sequence per thread: {}\n\n",
+                .{std.fmt.fmtDuration(self.timer.lap() * THREADS / count)},
+            );
+            self.last_count = self.count;
         }
     }
 
@@ -235,7 +333,7 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    var buf = try SolutionBuffer.loadOrInit(allocator, PC_PATH, COUNT_PATH);
+    var buf = try SolutionBuffer.loadOrInit(allocator, SAVE_PATH);
     defer buf.deinit();
 
     var threads = [_]Thread{undefined} ** THREADS;
@@ -320,7 +418,9 @@ fn solveThread(buf: *SolutionBuffer) !void {
         }
 
         sol_count.store(@intCast(solved), .monotonic);
-        try buf.writeDoneChunks(PC_PATH, COUNT_PATH);
+        if (try buf.writeDoneChunks(SAVE_PATH)) {
+            try buf.printStatsAndBackup(SAVE_PATH);
+        }
     }
 }
 
@@ -344,88 +444,6 @@ fn unpackSequence(seq: u48, comptime len: usize) [len]PieceKind {
         pieces[i] = @enumFromInt(@as(u3, @truncate(seq >> @intCast(3 * i))));
     }
     return pieces;
-}
-
-fn saveAppend(
-    pc_path: []const u8,
-    count_path: []const u8,
-    count: u64,
-    sequences: []const u48,
-    comptime solution_len: usize,
-    solutions: []const [solution_len]Placement,
-) !void {
-    assert(solution_len <= 16);
-    assert(sequences.len == solutions.len);
-
-    // Multiple threads can save at the same time, but no threads should start
-    // saving when we are exiting
-    if (saving_threads.load(.monotonic) < 0) {
-        return;
-    }
-
-    _ = saving_threads.fetchAdd(1, .monotonic);
-    defer _ = saving_threads.fetchSub(1, .monotonic);
-
-    // Write PC solutions
-    {
-        const file = fs.cwd().openFile(
-            pc_path,
-            .{ .mode = .write_only },
-        ) catch |e| blk: {
-            // Create file if it doesn't exist
-            if (e != fs.File.OpenError.FileNotFound) {
-                return e;
-            }
-            try fs.cwd().makePath(std.fs.path.dirname(pc_path) orelse return error.InvalidPath);
-            break :blk try fs.cwd().createFile(pc_path, .{});
-        };
-        defer file.close();
-
-        // Seek to end to append to file
-        try file.seekFromEnd(0);
-        var buf_writer = std.io.bufferedWriter(file.writer());
-        const writer = buf_writer.writer();
-
-        for (sequences, solutions) |seq, sol| {
-            var holds: u16 = 0;
-            var placements = [_]u8{0} ** solution_len;
-
-            const sequence = unpackSequence(seq, NEXT_LEN + 1);
-
-            var hold = sequence[0];
-            var current = sequence[1];
-            for (sol, 0..) |placement, i| {
-                // Use canonical position so that the position is always in the range [0, 59]
-                const canon_pos = placement.piece.canonicalPosition(placement.pos);
-                const pos = canon_pos.y * 10 + canon_pos.x;
-                assert(pos < 60);
-                placements[i] = @intFromEnum(placement.piece.facing) | (@as(u8, pos) << 2);
-
-                if (current != placement.piece.kind) {
-                    holds |= @as(u16, 1) << @intCast(i);
-                    hold = current;
-                }
-                // Only update current if it's not the last piece
-                if (i < sol.len - 1) {
-                    current = sequence[i + 2];
-                }
-            }
-
-            try writer.writeInt(u48, seq, .little);
-            try writer.writeInt(u16, holds, .little);
-            try writer.writeAll(&placements);
-        }
-        try buf_writer.flush();
-    }
-
-    // Write new count
-    {
-        try fs.cwd().makePath(std.fs.path.dirname(pc_path) orelse return error.InvalidPath);
-        const file = try fs.cwd().createFile(count_path, .{});
-        defer file.close();
-
-        try file.writer().print("{}", .{count});
-    }
 }
 
 fn gameWithPieces(pieces: []const PieceKind) GameState {
