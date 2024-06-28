@@ -28,7 +28,8 @@ pub fn main() !void {
     defer file.close();
 
     var solution_count: u64 = 0;
-    const reader = file.reader();
+    var buf_reader = std.io.bufferedReader(file.reader());
+    const reader = buf_reader.reader();
     while (try file.getPos() < try file.getEndPos()) {
         const seq = try reader.readInt(u48, .little);
         const holds = try reader.readInt(u16, .little);

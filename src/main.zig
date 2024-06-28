@@ -288,6 +288,9 @@ const SolutionBuffer = struct {
     }
 
     pub fn printStatsAndBackup(self: *SolutionBuffer, path: []const u8) !void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+
         std.debug.print(
             "Solved {} out of {}\n",
             .{ self.solved, self.count },
