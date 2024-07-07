@@ -355,6 +355,11 @@ pub fn main() !void {
     for (threads) |thread| {
         thread.join();
     }
+
+    // Wait for saves to finish
+    while (saving_threads.load(.monotonic) > 0) {
+        std.time.sleep(std.time.ns_per_ms);
+    }
 }
 
 const handle_signals = [_]c_int{ SIG.ABRT, SIG.INT, SIG.QUIT, SIG.STOP, SIG.TERM };
