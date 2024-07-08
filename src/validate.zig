@@ -30,8 +30,13 @@ pub fn main() !void {
     var solution_count: u64 = 0;
     var buf_reader = std.io.bufferedReader(file.reader());
     const reader = buf_reader.reader();
-    while (try file.getPos() < try file.getEndPos()) {
-        const seq = try reader.readInt(u48, .little);
+    while (true) {
+        const seq = reader.readInt(u48, .little) catch |e| {
+            if (e == error.EndOfStream) {
+                break;
+            }
+            return e;
+        };
         const holds = try reader.readInt(u16, .little);
 
         var pieces = [_]PieceKind{undefined} ** MAX_SEQ_LEN;
