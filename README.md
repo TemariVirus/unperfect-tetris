@@ -88,7 +88,7 @@ The `.pc` format can only store solutions with up to 15 placements, and that
 start with an empty board. The format consists of only a list of solutions with
 no padding or metadata. The format of a solution is as follows:
 
-| bytes | name       | description                                      |
+| Bytes | Name       | Description                                      |
 | ----- | ---------- | ------------------------------------------------ |
 | 0-5   | sequence   | The sequence of hold and next pieces             |
 | 6-7   | holds      | 15 binary flags indicating where holds are used  |
@@ -103,7 +103,7 @@ bits 6-8 indicate the first piece in the next queue, bits 9-11 indicate the
 second piece in the next queue, etc. Each 3-bit value maps to a different
 piece:
 
-| value | piece    |
+| Value | Piece    |
 | ----- | -------- |
 | 000   | I        |
 | 001   | O        |
@@ -131,7 +131,7 @@ The list of placements is stored in little-endian order, and the length of this
 list is always the length of the sequence minus one. Each placement is stored
 as a single byte, with the following format:
 
-| bits | name     | description                                   |
+| Bits | Name     | Description                                   |
 | ---- | -------- | --------------------------------------------- |
 | 0-1  | facing   | The direction the piece is facing when placed |
 | 2-7  | position | The position of the piece. x + 10y            |
@@ -148,28 +148,43 @@ y-coordinates represent the center of the piece as defined by
 x-axis starts at 0 at the leftmost column and increases rightwards. The y-axis
 starts at 0 at the bottom row and increases upwards.
 
-## Number of possible next sequences (with hold)
+## Other interesting information
 
-| length | non-equivalent\*  | time         |
-| ------ | ----------------- | ------------ |
-| 0      | 7                 | trivial      |
-| 1      | 28                | <100ns       |
-| 2      | 196               | <100ns       |
-| 3      | 1,365             | <100ns       |
-| 4      | 9,198             | <100ns       |
-| 5      | 57,750            | 1.03ms       |
-| 6      | 326,340           | 3.006ms      |
-| 7      | 1,615,320         | 19.363ms     |
-| 8      | 6,849,360         | 31.392ms     |
-| 9      | 24,857,280        | 89.685ms     |
-| 10     | 79,516,080        | 230.081ms    |
-| 11     | 247,474,080       | 647.921ms    |
-| 12     | 880,180,560       | 2.335s       |
-| 13     | 3,683,700,720     | 9.252s       |
-| 14     | 15,528,492,000    | 42.102s      |
-| 15     | 57,596,696,640    | 3m7.601s     |
-| 16     | 189,672,855,120   | 15m31.773s   |
-| 17     | 549,973,786,320   | 1h18m28.595s |
-| 18     | 1,554,871,505,040 | 2h17m20.902s |
+### Number of possible next sequences (with hold)
+
+| Length | Non-equivalent\*  |
+| ------ | ----------------- |
+| 0      | 7                 |
+| 1      | 28                |
+| 2      | 196               |
+| 3      | 1,365             |
+| 4      | 9,198             |
+| 5      | 57,750            |
+| 6      | 326,340           |
+| 7      | 1,615,320         |
+| 8      | 6,849,360         |
+| 9      | 24,857,280        |
+| 10     | 79,516,080        |
+| 11     | 247,474,080       |
+| 12     | 880,180,560       |
+| 13     | 3,683,700,720     |
+| 14     | 15,528,492,000    |
+| 15     | 57,596,696,640    |
+| 16     | 189,672,855,120   |
+| 17     | 549,973,786,320   |
+| 18     | 1,554,871,505,040 |
 
 \*Two sequences are considered equivalent if the set of all possible structures that can be built by each are equal.
+
+### PC solve chances
+
+The chances of a perfect clear being possible in certain situations with an empty playfield are as follows:
+
+| Type           | held piece | randomiser | Chance  | Odds                       |
+| -------------- | ---------- | ---------- | ------- | -------------------------- |
+| 2-line, opener | none       | 7-bag      | 0%      | 0 in 5,040                 |
+| 2-line         | none       | 7-bag      | 3.3217% | 5,148 in 154,980           |
+| 2-line         | any        | 7-bag      | 4.1696% | 51,696 in 1,239,840        |
+| 4-line, opener | none       | 7-bag      | 100%    | 4,233,600 in 4,233,600     |
+| 4-line         | none       | 7-bag      | 100%    | 57,576,960 in 57,576,960   |
+| 4-line         | any        | 7-bag      | 99.975% | 460,501,934 in 460,615,680 |

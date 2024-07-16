@@ -460,6 +460,10 @@ pub fn SequenceIterator(comptime len: usize, comptime unlocked: usize) type {
                     piece;
                 pieces[i] = @enumFromInt(swapped);
             }
+            // Ensure canonical order
+            if (@as(u3, @intFromEnum(pieces[1])) > @as(u3, @intFromEnum(pieces[0]))) {
+                std.mem.swap(PieceKind, &pieces[0], &pieces[1]);
+            }
             return pieces;
         }
     };
