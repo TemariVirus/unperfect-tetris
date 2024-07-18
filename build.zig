@@ -17,9 +17,15 @@ pub fn build(b: *Build) void {
         .optimize = optimize,
     }).module("zmai");
 
+    // zig-args dependency
+    const args_module = b.dependency("zig-args", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("args");
+
     // Expose the library root
     const root_module = b.addModule("perfect-tetris", .{
-        .root_source_file = lazyPath(b, "src/root.zig"),
+        .root_source_file = b.path("src/root.zig"),
         .imports = &.{
             .{ .name = "engine", .module = engine_module },
             .{ .name = "nterm", .module = engine_module.import_table.get("nterm").? },
@@ -39,12 +45,13 @@ pub fn build(b: *Build) void {
 
     // Add NN files
     const install_NNs = b.addInstallDirectory(.{
-        .source_dir = lazyPath(b, "NNs"),
+        .source_dir = b.path("NNs"),
         .install_dir = .bin,
         .install_subdir = "NNs",
     });
 
-    buildExe(b, target, optimize, root_module, install_NNs);
+    buildExe(b, target, optimize, root_module, args_module);
+    buildSolve(b, target, optimize, root_module, install_NNs);
     buildDemo(b, target, optimize, root_module, install_NNs);
     buildTests(b, root_module);
     buildBench(b, target, root_module);
@@ -58,21 +65,58 @@ fn buildExe(
     target: Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
     root_module: *Build.Module,
-    install_NNs: *Build.Step.InstallDir,
+    args_module: *Build.Module,
 ) void {
     const exe = b.addExecutable(.{
         .name = "perfect-tetris",
-        .root_source_file = lazyPath(b, "src/main.zig"),
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.root_module.addImport("perfect-tetris", root_module);
+    exe.root_module.addImport("zig-args", args_module);
+    exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
+    exe.root_module.addImport("zmai", root_module.import_table.get("zmai").?);
+
+    exe.root_module.addAnonymousImport("nn_json", .{
+        .root_source_file = b.path("NNs/Fast2.json"),
+    });
+
+    if (optimize == .ReleaseFast) {
+        exe.root_module.strip = true;
+    }
+
+    const run_cmd = b.addRunArtifact(exe);
+    run_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
+    }
+    const run_step = b.step("run", "Run the app");
+    run_step.dependOn(&run_cmd.step);
+
+    const install = b.addInstallArtifact(exe, .{});
+    run_step.dependOn(&install.step);
+}
+
+fn buildSolve(
+    b: *Build,
+    target: Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    root_module: *Build.Module,
+    install_NNs: *Build.Step.InstallDir,
+) void {
+    const exe = b.addExecutable(.{
+        .name = "solve",
+        .root_source_file = b.path("src/solve.zig"),
         .target = target,
         .optimize = optimize,
     });
     exe.root_module.addImport("perfect-tetris", root_module);
     exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
-    exe.root_module.addImport("zmai", root_module.import_table.get("zmai").?);
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
-    const run_step = b.step("run", "Run the app");
+    const run_step = b.step("solve", "Run the PC solver");
     run_step.dependOn(&run_cmd.step);
 
     const install = b.addInstallArtifact(exe, .{});
@@ -89,14 +133,13 @@ fn buildDemo(
 ) void {
     const demo_exe = b.addExecutable(.{
         .name = "demo",
-        .root_source_file = lazyPath(b, "src/demo.zig"),
+        .root_source_file = b.path("src/demo.zig"),
         .target = target,
         .optimize = optimize,
     });
     demo_exe.root_module.addImport("perfect-tetris", root_module);
     demo_exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
     demo_exe.root_module.addImport("nterm", root_module.import_table.get("nterm").?);
-    demo_exe.root_module.addImport("zmai", root_module.import_table.get("zmai").?);
 
     const run_cmd = b.addRunArtifact(demo_exe);
     run_cmd.step.dependOn(b.getInstallStep());
@@ -113,7 +156,7 @@ fn buildDemo(
 
 fn buildTests(b: *Build, root_module: *Build.Module) void {
     const lib_tests = b.addTest(.{
-        .root_source_file = lazyPath(b, "src/root.zig"),
+        .root_source_file = b.path("src/root.zig"),
     });
     lib_tests.root_module.addImport("options", root_module.import_table.get("options").?);
     lib_tests.root_module.addImport("engine", root_module.import_table.get("engine").?);
@@ -131,13 +174,12 @@ fn buildBench(
 ) void {
     const bench_exe = b.addExecutable(.{
         .name = "benchmarks",
-        .root_source_file = lazyPath(b, "src/bench.zig"),
+        .root_source_file = b.path("src/bench.zig"),
         .target = target,
         .optimize = .ReleaseFast,
     });
     bench_exe.root_module.addImport("perfect-tetris", root_module);
     bench_exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
-    bench_exe.root_module.addImport("zmai", root_module.import_table.get("zmai").?);
 
     const bench_cmd = b.addRunArtifact(bench_exe);
     bench_cmd.step.dependOn(b.getInstallStep());
@@ -156,7 +198,7 @@ fn buildTrain(
 ) void {
     const train_exe = b.addExecutable(.{
         .name = "nn-train",
-        .root_source_file = lazyPath(b, "src/train.zig"),
+        .root_source_file = b.path("src/train.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -184,7 +226,7 @@ fn buildDisplay(
 ) void {
     const display_exe = b.addExecutable(.{
         .name = "display",
-        .root_source_file = lazyPath(b, "src/display.zig"),
+        .root_source_file = b.path("src/display.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -212,11 +254,10 @@ fn buildValidate(
 ) void {
     const validate_exe = b.addExecutable(.{
         .name = "validate",
-        .root_source_file = lazyPath(b, "src/validate.zig"),
+        .root_source_file = b.path("src/validate.zig"),
         .target = target,
         .optimize = optimize,
     });
-    validate_exe.root_module.addImport("perfect-tetris", root_module);
     validate_exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
 
     const run_cmd = b.addRunArtifact(validate_exe);
@@ -229,13 +270,4 @@ fn buildValidate(
 
     const install = b.addInstallArtifact(validate_exe, .{});
     validate_step.dependOn(&install.step);
-}
-
-fn lazyPath(b: *Build, path: []const u8) Build.LazyPath {
-    return .{
-        .src_path = .{
-            .owner = b,
-            .sub_path = path,
-        },
-    };
 }

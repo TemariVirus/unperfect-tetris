@@ -22,11 +22,13 @@ pub const Placement = struct {
 };
 
 pub const NN = struct {
+    pub const INPUT_SIZE = 7;
+
     net: NNInner,
-    inputs_used: [7]bool,
+    inputs_used: [INPUT_SIZE]bool,
 
     pub fn load(allocator: Allocator, path: []const u8) !NN {
-        var inputs_used: [7]bool = undefined;
+        var inputs_used: [INPUT_SIZE]bool = undefined;
         const nn = try NNInner.load(allocator, path, &inputs_used);
         return .{
             .net = nn,
@@ -38,14 +40,18 @@ pub const NN = struct {
         self.net.deinit(allocator);
     }
 
-    pub fn predict(self: NN, input: [7]f32) f32 {
+    pub fn predict(self: NN, input: [INPUT_SIZE]f32) f32 {
         var output: [1]f32 = undefined;
         self.net.predict(&input, &output);
         return output[0];
     }
 };
 
-pub fn getFeatures(playfield: BoardMask, max_height: u3, inputs_used: [7]bool) [7]f32 {
+pub fn getFeatures(
+    playfield: BoardMask,
+    max_height: u3,
+    inputs_used: [NN.INPUT_SIZE]bool,
+) [NN.INPUT_SIZE]f32 {
     // Find highest block in each column. Heights start from 0
     var column = comptime blk: {
         var column = @as(u64, 1);
@@ -174,7 +180,7 @@ test getFeatures {
                 0b1111111111 << (0 * BoardMask.WIDTH),
         },
         6,
-        [_]bool{true} ** 7,
+        [_]bool{true} ** NN.INPUT_SIZE,
     );
     try expect(features[0] == 11.7046995);
     try expect(features[1] == 10);

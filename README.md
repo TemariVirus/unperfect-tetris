@@ -1,6 +1,11 @@
 # perfect-tetris
 
-Blazingly fast Tetris perfect clear solver.
+Blazingly fast Tetris perfect clear solver. Accepts input in fumen format and
+outputs solutions in fumen format.
+
+## Usage
+
+TODO
 
 ## Zig Version
 
@@ -11,13 +16,21 @@ Blazingly fast Tetris perfect clear solver.
 ### Run
 
 ```bash
-zig build run
+zig build run -- [ARGS] INPUT
 ```
 
-Finds all perfect clear solutions of a give height from an empty board, and
-saves the solutions to disk.
+Runs the main program. Refer to [usage](#usage) for more information.
 
-Settings may be adjusted in the top-level declarations in `src/main.zig`. If
+### Solve
+
+```bash
+zig build solve
+```
+
+Finds all perfect clear solutions of a given height from an empty playfield,
+and saves the solutions to disk in [`.pc`](#pc-file-format) format.
+
+Settings may be adjusted in the top-level declarations in `src/solve.zig`. If
 the height is 4 or less, the `-Dsmall` option may be passed to the compiler for
 a potential speedup.
 
@@ -29,7 +42,8 @@ zig build demo
 
 Continuously solves perfect clears and displays the solutions in the terminal.
 
-To change the speed of the demo, adjust the `FRAMERATE` constant in `src/demo.zig`.
+To change the speed of the demo, adjust the `FRAMERATE` constant in
+`src/demo.zig`.
 
 ### Test
 
@@ -56,8 +70,8 @@ passed to the compiler for a potential speedup.
 zig build train
 ```
 
-Trains a population of neural networks to solve perfect clears as fast as possible.
-The population is saved at the end of every generation.
+Trains a population of neural networks to solve perfect clears as fast as
+possible. The population is saved at the end of every generation.
 
 Settings may be adjusted in the top-level declarations in `src/train.zig`. If
 the height is 4 or less, the `-Dsmall` option may be passed to the compiler for
@@ -85,8 +99,8 @@ Validates the perfect clear solutions saved at `PATH`.
 The `.pc` file format is a binary format that stores perfect clear solutions.
 
 The `.pc` format can only store solutions with up to 15 placements, and that
-start with an empty board. The format consists of only a list of solutions with
-no padding or metadata. The format of a solution is as follows:
+start with an empty playfield. The format consists of only a list of solutions
+with no padding or metadata. The format of a solution is as follows:
 
 | Bytes | Name       | Description                                      |
 | ----- | ---------- | ------------------------------------------------ |
@@ -174,11 +188,13 @@ starts at 0 at the bottom row and increases upwards.
 | 17     | 549,973,786,320   |
 | 18     | 1,554,871,505,040 |
 
-\*Two sequences are considered equivalent if the set of all possible structures that can be built by each are equal.
+\*Two sequences are considered equivalent if the set of all possible structures
+that can be built by each are equal.
 
 ### PC solve chances
 
-The chances of a perfect clear being possible in certain situations with an empty playfield are as follows:
+The chances of a perfect clear being possible in certain situations with an
+empty playfield are as follows:
 
 | Type           | held piece | randomiser | Chance  | Odds                       |
 | -------------- | ---------- | ---------- | ------- | -------------------------- |

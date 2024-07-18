@@ -1,6 +1,6 @@
 .{
     .name = "perfect-tetris",
-    .version = "0.0.0",
+    .version = "0.0.1",
     .dependencies = .{
         .engine = .{
             .url = "https://github.com/TemariVirus/Budget-Tetris-Engine/archive/e51d072cce2a5dabde94e9850524e9f74ed8b68a.tar.gz",
@@ -9,6 +9,10 @@
         .zmai = .{
             .url = "https://github.com/TemariVirus/zmai/archive/fa4f6af39bb185555221346a6d3395cfb31258be.tar.gz",
             .hash = "12205906277f0eaff4417d1cf18062e8e30331868f100a93684f1ef5708fd11d6c4b",
+        },
+        .@"zig-args" = .{
+            .url = "git+https://github.com/ikskuh/zig-args#03af1b6c5bfda9646a562c861055024daed5b238",
+            .hash = "1220904d2fdcd970dd0d216211d092eb3ef6da01117163cc9393ab845a1d66c029d9",
         },
     },
     .paths = .{
