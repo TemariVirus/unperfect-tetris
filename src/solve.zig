@@ -381,7 +381,7 @@ fn setupExitHandler() void {
             .flags = 0,
         };
         for (handle_signals) |sig| {
-            _ = os.linux.sigaction(sig, &action, null);
+            _ = os.linux.sigaction(@intCast(sig), &action, null);
         }
     }
 }

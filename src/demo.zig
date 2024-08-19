@@ -1,12 +1,12 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const json = std.json;
 const SolutionList = std.ArrayList([]Placement);
 const time = std.time;
 
 const engine = @import("engine");
 const GameState = Player.GameState;
 const kicks = engine.kicks;
-const PeriodicTrigger = engine.PeriodicTrigger;
 const Player = engine.Player(SevenBag);
 const SevenBag = engine.bags.SevenBag;
 
@@ -18,22 +18,39 @@ const NN = root.NN;
 const pc = root.pc;
 const Placement = root.Placement;
 
-/// Also used as the number of placements/s
-const FRAMERATE = 20;
+const NNInner = @import("zmai").genetic.neat.NN;
+
+const PeriodicTrigger = @import("PeriodicTrigger.zig");
+
+const FRAMERATE = 60;
 const FPS_TIMING_WINDOW = FRAMERATE * 2;
 /// The maximum number of perfect clears to calculate in advance.
-const MAX_PC_QUEUE = 16;
+const MAX_PC_QUEUE = 128;
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+pub fn main(allocator: Allocator, nn_path: ?[]const u8, pps: u32) !void {
+    const nn = if (nn_path) |path| blk: {
+        break :blk try NN.load(allocator, path);
+    } else blk: {
+        // Use embedded neural network if no path is provided
+        const obj = try json.parseFromSlice(NNInner.NNJson, allocator, @embedFile("nn_json"), .{
+            .ignore_unknown_fields = true,
+        });
+        defer obj.deinit();
+
+        var inputs_used: [NN.INPUT_COUNT]bool = undefined;
+        const _nn = try NNInner.fromJson(allocator, obj.value, &inputs_used);
+        break :blk NN{
+            .net = _nn,
+            .inputs_used = inputs_used,
+        };
+    };
+    defer nn.deinit(allocator);
 
     // Add 2 to create a 1-wide empty boarder on the left and right.
     try nterm.init(
         allocator,
         std.io.getStdOut(),
-        FPS_TIMING_WINDOW,
+        FRAMERATE * 2,
         Player.DISPLAY_W + 2,
         Player.DISPLAY_H,
     );
@@ -59,12 +76,12 @@ pub fn main() !void {
     );
 
     var placement_i: usize = 0;
-    var pc_queue = SolutionList.init(allocator);
+    var pc_queue = try SolutionList.initCapacity(allocator, MAX_PC_QUEUE);
     defer pc_queue.deinit();
 
     const pc_thread = try std.Thread.spawn(.{
         .allocator = allocator,
-    }, pcThread, .{ allocator, player.state, &pc_queue });
+    }, pcThread, .{ allocator, nn, player.state, &pc_queue });
     defer pc_thread.join();
 
     const fps_view = View{
@@ -74,13 +91,16 @@ pub fn main() !void {
         .height = 1,
     };
 
-    var render_timer = PeriodicTrigger.init(time.ns_per_s / FRAMERATE);
+    var render_timer = PeriodicTrigger.init(time.ns_per_s / FRAMERATE, true);
+    var place_timer = PeriodicTrigger.init(time.ns_per_s / pps, false);
     while (true) {
-        if (render_timer.trigger()) |dt| {
-            fps_view.printAt(0, 0, .white, .black, "{d:.2}FPS", .{nterm.fps()});
+        var triggered = false;
 
-            placePcPiece(allocator, &player, &pc_queue, &placement_i);
+        if (render_timer.trigger()) |dt| {
+            triggered = true;
             player.tick(dt, 0, &.{});
+
+            fps_view.printAt(0, 0, .white, .black, "{d:.2}FPS", .{nterm.fps()});
             player.draw();
             nterm.render() catch |err| {
                 // Trying to render after the terminal has been closed results
@@ -90,7 +110,13 @@ pub fn main() !void {
                 }
                 return err;
             };
-        } else {
+        }
+        while (place_timer.trigger()) |_| {
+            triggered = true;
+            placePcPiece(allocator, &player, &pc_queue, &placement_i);
+        }
+
+        if (!triggered) {
             time.sleep(1 * time.ns_per_ms);
         }
     }
@@ -123,11 +149,8 @@ fn placePcPiece(
     }
 }
 
-fn pcThread(allocator: Allocator, state: GameState, queue: *SolutionList) !void {
+fn pcThread(allocator: Allocator, nn: NN, state: GameState, queue: *SolutionList) !void {
     var game = state;
-
-    const nn = try NN.load(allocator, "NNs/Fast2.json");
-    defer nn.deinit(allocator);
 
     while (true) {
         while (queue.items.len >= MAX_PC_QUEUE) {

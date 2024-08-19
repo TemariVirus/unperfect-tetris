@@ -21,6 +21,8 @@ const root = @import("perfect-tetris");
 const NN = root.NN;
 const pc = root.pc;
 
+const PeriodicTrigger = @import("PeriodicTrigger.zig");
+
 // Height of perfect clears to find
 const HEIGHT = 4;
 comptime {
@@ -40,7 +42,7 @@ const OPTIONS = Trainer.Options{
         .node_add_prob = 0.05,
     },
     .nn_options = .{
-        .input_count = 7,
+        .input_count = NN.INPUT_COUNT,
         .output_count = 1,
         .hidden_activation = .swish,
         .output_activation = .identity,
@@ -85,7 +87,7 @@ pub fn main() !void {
         thread.join();
     };
 
-    var save_timer = engine.PeriodicTrigger.init(SAVE_INTERVAL);
+    var save_timer = PeriodicTrigger.init(SAVE_INTERVAL, true);
     outer: while (trainer.generation < GENERATIONS) {
         time.sleep(time.ns_per_ms);
         if (save_timer.trigger()) |_| {

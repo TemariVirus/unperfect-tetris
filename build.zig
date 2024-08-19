@@ -52,12 +52,9 @@ pub fn build(b: *Build) void {
 
     buildExe(b, target, optimize, root_module, args_module);
     buildSolve(b, target, optimize, root_module, install_NNs);
-    buildDemo(b, target, optimize, root_module, install_NNs);
     buildTests(b, root_module);
     buildBench(b, target, root_module);
     buildTrain(b, target, optimize, root_module);
-    buildDisplay(b, target, optimize, root_module);
-    buildValidate(b, target, optimize, root_module);
 }
 
 fn buildExe(
@@ -76,10 +73,11 @@ fn buildExe(
     exe.root_module.addImport("perfect-tetris", root_module);
     exe.root_module.addImport("zig-args", args_module);
     exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
+    exe.root_module.addImport("nterm", root_module.import_table.get("nterm").?);
     exe.root_module.addImport("zmai", root_module.import_table.get("zmai").?);
 
     exe.root_module.addAnonymousImport("nn_json", .{
-        .root_source_file = b.path("NNs/Fast2.json"),
+        .root_source_file = b.path("NNs/Fast2-mini.json"),
     });
 
     if (optimize == .ReleaseFast) {
@@ -121,36 +119,6 @@ fn buildSolve(
 
     const install = b.addInstallArtifact(exe, .{});
     run_step.dependOn(&install.step);
-    install.step.dependOn(&install_NNs.step);
-}
-
-fn buildDemo(
-    b: *Build,
-    target: Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    root_module: *Build.Module,
-    install_NNs: *Build.Step.InstallDir,
-) void {
-    const demo_exe = b.addExecutable(.{
-        .name = "demo",
-        .root_source_file = b.path("src/demo.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    demo_exe.root_module.addImport("perfect-tetris", root_module);
-    demo_exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
-    demo_exe.root_module.addImport("nterm", root_module.import_table.get("nterm").?);
-
-    const run_cmd = b.addRunArtifact(demo_exe);
-    run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-    const demo_step = b.step("demo", "Run the demo");
-    demo_step.dependOn(&run_cmd.step);
-
-    const install = b.addInstallArtifact(demo_exe, .{});
-    demo_step.dependOn(&install.step);
     install.step.dependOn(&install_NNs.step);
 }
 
@@ -216,58 +184,4 @@ fn buildTrain(
 
     const install = b.addInstallArtifact(train_exe, .{});
     train_step.dependOn(&install.step);
-}
-
-fn buildDisplay(
-    b: *Build,
-    target: Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    root_module: *Build.Module,
-) void {
-    const display_exe = b.addExecutable(.{
-        .name = "display",
-        .root_source_file = b.path("src/display.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    display_exe.root_module.addImport("perfect-tetris", root_module);
-    display_exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
-    display_exe.root_module.addImport("nterm", root_module.import_table.get("nterm").?);
-
-    const run_cmd = b.addRunArtifact(display_exe);
-    run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-    const display_step = b.step("display", "Display PC solutions");
-    display_step.dependOn(&run_cmd.step);
-
-    const install = b.addInstallArtifact(display_exe, .{});
-    display_step.dependOn(&install.step);
-}
-
-fn buildValidate(
-    b: *Build,
-    target: Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    root_module: *Build.Module,
-) void {
-    const validate_exe = b.addExecutable(.{
-        .name = "validate",
-        .root_source_file = b.path("src/validate.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    validate_exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
-
-    const run_cmd = b.addRunArtifact(validate_exe);
-    run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-    const validate_step = b.step("validate", "Validate PC solutions");
-    validate_step.dependOn(&run_cmd.step);
-
-    const install = b.addInstallArtifact(validate_exe, .{});
-    validate_step.dependOn(&install.step);
 }

@@ -5,7 +5,77 @@ outputs solutions in fumen format.
 
 ## Usage
 
-TODO
+```bash
+perfect-tetris COMMAND [options] [INPUT]
+```
+
+## Commands
+
+### Demo
+
+```bash
+perfect-tetris demo [options]
+```
+
+Demostrates the perfect clear solver's speed with a tetris playing bot.
+
+#### Options
+
+`-h`, `--help` Print the help message.
+
+`-n`, `--nn` The path to the neural network to use for the bot. If not
+provided, a default built-in network will be used.
+
+`-p`, `--pps` The target pieces per second of the bot. (default: 10)
+
+### Display
+
+```bash
+perfect-tetris display [options] PATH
+```
+
+Displays the perfect clear solutions saved at `PATH`. Press `enter` to display
+the next solution.
+
+#### Options
+
+`-h`, `--help` Print the help message.
+
+### Fumen
+
+```bash
+perfect-tetris fumen [options] INPUTS...
+```
+
+Produces a perfect clear solution for each input fumen. Outputs each solution
+as a new fumen, separated by newlines.
+
+#### Options
+
+`-a`, `--append` Append solution frames to input fumen instead of making a new
+fumen from scratch.
+
+`-h`, `--help` Print the help message.
+
+`-k`, `--kicks` Permitted kick/rotation system. Supported Values:
+[`none`, `none180`, `srs`, `srs180`, `srsPlus`, `srsTetrio`] (default: `srs`)
+
+`-t`, `--output-type` The type of fumen to output. If append is true, this
+option is ignored. Supported Values: [`edit`, `list`, `view`] (default: `view`)
+
+### Validate
+
+```bash
+perfect-tetris validate [options] PATHS...
+```
+
+Validates the perfect clear solutions saved at `PATHS`. This will validate that
+`PATHS` are valid .pc files and that all solutions are valid perfect clear
+solutions.
+
+#### Options
+
+`-h`, `--help` Print the help message.
 
 ## Zig Version
 
@@ -16,7 +86,7 @@ TODO
 ### Run
 
 ```bash
-zig build run -- [ARGS] INPUT
+zig build run -- COMMAND [ARGS] [INPUT]
 ```
 
 Runs the main program. Refer to [usage](#usage) for more information.
@@ -33,17 +103,6 @@ and saves the solutions to disk in [`.pc`](#pc-file-format) format.
 Settings may be adjusted in the top-level declarations in `src/solve.zig`. If
 the height is 4 or less, the `-Dsmall` option may be passed to the compiler for
 a potential speedup.
-
-### Demo
-
-```bash
-zig build demo
-```
-
-Continuously solves perfect clears and displays the solutions in the terminal.
-
-To change the speed of the demo, adjust the `FRAMERATE` constant in
-`src/demo.zig`.
 
 ### Test
 
@@ -76,23 +135,6 @@ possible. The population is saved at the end of every generation.
 Settings may be adjusted in the top-level declarations in `src/train.zig`. If
 the height is 4 or less, the `-Dsmall` option may be passed to the compiler for
 a potential speedup.
-
-### Display
-
-```bash
-zig build display -- PATH
-```
-
-Displays the perfect clear solutions saved at `PATH`. Press `enter` to display
-the next solution.
-
-### Validate
-
-```bash
-zig build validate -- PATH
-```
-
-Validates the perfect clear solutions saved at `PATH`.
 
 ## .pc file format
 
@@ -196,11 +238,11 @@ that can be built by each are equal.
 The chances of a perfect clear being possible in certain situations with an
 empty playfield are as follows:
 
-| Type           | held piece | randomiser | Chance  | Odds                       |
-| -------------- | ---------- | ---------- | ------- | -------------------------- |
-| 2-line, opener | none       | 7-bag      | 0%      | 0 in 5,040                 |
-| 2-line         | none       | 7-bag      | 3.3217% | 5,148 in 154,980           |
-| 2-line         | any        | 7-bag      | 4.1696% | 51,696 in 1,239,840        |
-| 4-line, opener | none       | 7-bag      | 100%    | 4,233,600 in 4,233,600     |
-| 4-line         | none       | 7-bag      | 100%    | 57,576,960 in 57,576,960   |
-| 4-line         | any        | 7-bag      | 99.975% | 460,501,934 in 460,615,680 |
+| Type           | held piece | randomiser | rotation system | Chance  | Odds                       |
+| -------------- | ---------- | ---------- | --------------- | ------- | -------------------------- |
+| 2-line, opener | none       | 7-bag      | SRS             | 0%      | 0 in 5,040                 |
+| 2-line         | none       | 7-bag      | SRS             | 3.3217% | 5,148 in 154,980           |
+| 2-line         | any        | 7-bag      | SRS             | 4.1696% | 51,696 in 1,239,840        |
+| 4-line, opener | none       | 7-bag      | SRS             | 100%    | 4,233,600 in 4,233,600     |
+| 4-line         | none       | 7-bag      | SRS             | 100%    | 57,576,960 in 57,576,960   |
+| 4-line         | any        | 7-bag      | SRS             | 99.975% | 460,501,934 in 460,615,680 |

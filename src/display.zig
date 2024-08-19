@@ -1,5 +1,6 @@
 const std = @import("std");
 const assert = std.debug.assert;
+const Allocator = std.mem.Allocator;
 
 const engine = @import("engine");
 const Facing = engine.pieces.Facing;
@@ -13,20 +14,7 @@ const View = nterm.View;
 // Set max sequence length to 16 to handle up to 6-line PCs.
 const MAX_SEQ_LEN = 16;
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
-
-    var args = try std.process.argsWithAllocator(allocator);
-    _ = args.skip(); // Skip executable name
-    defer args.deinit();
-
-    const pc_path = args.next() orelse {
-        std.debug.print("Please enter a file path", .{});
-        return;
-    };
-
+pub fn main(allocator: Allocator, path: []const u8) !void {
     try nterm.init(
         allocator,
         std.io.getStdOut(),
@@ -36,7 +24,7 @@ pub fn main() !void {
     );
     defer nterm.deinit();
 
-    const file = try std.fs.cwd().openFile(pc_path, .{});
+    const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
 
     const reader = file.reader();
@@ -94,10 +82,27 @@ pub fn main() !void {
             drawMatrixPiece(matrix_view, &row_occupancy, piece, pos.x, pos.y);
         }
 
-        try nterm.render();
-        // Pressing and releasing 'enter' generates 2 bytes to read.
-        var b = [2]u8{ 0, 0 };
-        _ = try std.io.getStdIn().readAll(&b);
+        nterm.render() catch |err| {
+            // Trying to render after the terminal has been closed results
+            // in an error, in which case stop the program gracefully.
+            if (err == error.NotInitialized) {
+                return;
+            }
+            return err;
+        };
+
+        // Read until enter is pressed
+        while (true) {
+            const byte = std.io.getStdIn().reader().readByte() catch |err| {
+                if (err == error.EndOfStream) {
+                    return;
+                }
+                return err;
+            };
+            if (byte == '\n') {
+                break;
+            }
+        }
     }
 }
 

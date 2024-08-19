@@ -1,5 +1,6 @@
 const std = @import("std");
 const assert = std.debug.assert;
+const Allocator = std.mem.Allocator;
 
 const engine = @import("engine");
 const Bag = engine.bags.NoBag;
@@ -8,24 +9,13 @@ const GameState = engine.GameState(Bag);
 const Piece = engine.pieces.Piece;
 const PieceKind = engine.pieces.PieceKind;
 
-// TODO: optionally validate all sequences exist?
 const MAX_SEQ_LEN = 16;
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
-
-    var args = try std.process.argsWithAllocator(allocator);
-    _ = args.skip(); // Skip executable name
-    defer args.deinit();
-
-    const file_path = args.next() orelse {
-        std.debug.print("Please enter a file path", .{});
-        return;
-    };
-    const file = try std.fs.cwd().openFile(file_path, .{});
+pub fn main(path: []const u8) !void {
+    const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
+
+    try std.io.getStdOut().writer().print("Validating {s}\n", .{path});
 
     var solution_count: u64 = 0;
     var buf_reader = std.io.bufferedReader(file.reader());
@@ -49,7 +39,10 @@ pub fn main() !void {
             }
             pieces[next_len] = @enumFromInt(p);
         }
-        assert(next_len > 0);
+        if (next_len == 0) {
+            try printValidationError(file, reader, solution_count);
+            return;
+        }
 
         var state = GameState.init(Bag.init(0), engine.kicks.none);
         for (1..next_len) |i| {
@@ -70,12 +63,20 @@ pub fn main() !void {
             const info = state.lockCurrent(-1);
             // Last move must be a PC
             if (i == next_len - 1 and !info.pc) {
-                return error.InvalidSolution;
+                try printValidationError(file, reader, solution_count);
+                return;
             }
         }
 
         solution_count += 1;
     }
 
-    std.debug.print("Verified {} solutions. All solutions ok.\n", .{solution_count});
+    try std.io.getStdOut().writer().print("Validated {} solutions. All solutions ok.\n", .{solution_count});
+}
+
+fn printValidationError(file: std.fs.File, reader: anytype, solution_count: u64) !void {
+    const bytes = try file.getPos() -
+        @as(u64, @intCast(reader.context.end)) +
+        @as(u64, @intCast(reader.context.start));
+    try std.io.getStdOut().writer().print("Error at solution {} (byte {})\n", .{ solution_count, bytes });
 }
