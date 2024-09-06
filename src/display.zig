@@ -19,7 +19,31 @@ const View = nterm.View;
 const MAX_SEQ_LEN = 16;
 const INDEX_INTERVAL = 1 << 18;
 
-pub fn main(allocator: Allocator, path: []const u8) !void {
+pub const DisplayArgs = struct {
+    help: bool = false,
+
+    pub const wrap_len: u32 = 50;
+
+    pub const shorthands = .{
+        .h = "help",
+    };
+
+    pub const meta = .{
+        .usage_summary = "display [options] PATH",
+        .full_text =
+        \\Displays the perfect clear solutions saved at PATH. Press `enter` to
+        \\display the next solution. To seek to a specific solution, type the
+        \\solution number and press `enter`.
+        ,
+        .option_docs = .{
+            .help = "Print this help message.",
+        },
+    };
+};
+
+pub fn main(allocator: Allocator, args: DisplayArgs, path: []const u8) !void {
+    _ = args; // autofix
+
     try nterm.init(
         allocator,
         io.getStdOut(),
@@ -126,13 +150,22 @@ pub fn main(allocator: Allocator, path: []const u8) !void {
         defer allocator.free(bytes);
 
         if (std.fmt.parseInt(u64, bytes[0 .. bytes.len - 1], 10)) |n| {
-            if (try seekToSolution(pc_file, n, solution_index)) {
-                i = n;
+            if (n == 0) {
+                i = 0;
+                try pc_file.seekTo(0);
+            } else if (try seekToSolution(pc_file, n - 1, solution_index)) {
+                i = n - 1;
+            } else {
+                // Go back to start of current solution
+                try pc_file.seekBy(-@as(i64, @intCast(next_len)) - 7);
             }
         } else |_| {
             // Only go to next solution if the input is empty.
             if (bytes.len == 1) {
                 i += 1;
+            } else {
+                // Go back to start of current solution
+                try pc_file.seekBy(-@as(i64, @intCast(next_len)) - 7);
             }
         }
     }
@@ -146,7 +179,7 @@ fn printFooter(pos: u64, end: ?u64) void {
             Colors.WHITE,
             null,
             "Solution {} of {}",
-            .{ pos, e },
+            .{ pos + 1, e },
         );
     } else {
         nterm.view().printAt(
@@ -155,7 +188,7 @@ fn printFooter(pos: u64, end: ?u64) void {
             Colors.WHITE,
             null,
             "Solution {} of ?",
-            .{pos},
+            .{pos + 1},
         );
     }
 }
@@ -214,13 +247,15 @@ fn indexThread(
 
 fn seekToSolution(file: File, n: u64, solution_index: SolutionIndex) !bool {
     const old_pos = try file.getPos();
-    try file.seekTo(0);
+
+    // Get closest index before n
+    const index = @min(solution_index.items.len - 1, n / INDEX_INTERVAL);
+    var pos = solution_index.items[index];
+    try file.seekTo(pos);
 
     var bf = io.bufferedReader(file.reader());
     const reader = bf.reader();
 
-    const index = @min(solution_index.items.len - 1, n / INDEX_INTERVAL);
-    var pos = solution_index.items[index];
     for (index * INDEX_INTERVAL..n) |_| {
         const len = nextSolution(reader);
         if (len == 0) {
@@ -228,6 +263,12 @@ fn seekToSolution(file: File, n: u64, solution_index: SolutionIndex) !bool {
             return false;
         }
         pos += len;
+    }
+
+    // Don't seek if we just passed the last solution (i.e., n == solution count)
+    if (nextSolution(reader) == 0) {
+        try file.seekTo(old_pos);
+        return false;
     }
 
     try file.seekTo(pos);

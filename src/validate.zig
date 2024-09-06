@@ -11,7 +11,31 @@ const PieceKind = engine.pieces.PieceKind;
 
 const MAX_SEQ_LEN = 16;
 
-pub fn main(path: []const u8) !void {
+pub const ValidateArgs = struct {
+    help: bool = false,
+
+    pub const wrap_len: u32 = 50;
+
+    pub const shorthands = .{
+        .h = "help",
+    };
+
+    pub const meta = .{
+        .usage_summary = "validate [options] PATHS...",
+        .full_text =
+        \\Validates the perfect clear solutions saved at PATHS. This will validate
+        \\that PATHS are valid .pc files and that all solutions are valid perfect
+        \\clear solutions.
+        ,
+        .option_docs = .{
+            .help = "Print this help message.",
+        },
+    };
+};
+
+pub fn main(args: ValidateArgs, path: []const u8) !void {
+    _ = args; // autofix
+
     const file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
 

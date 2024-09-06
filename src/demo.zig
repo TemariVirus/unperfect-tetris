@@ -28,8 +28,32 @@ const FPS_TIMING_WINDOW = FRAMERATE * 2;
 /// The maximum number of perfect clears to calculate in advance.
 const MAX_PC_QUEUE = 128;
 
-pub fn main(allocator: Allocator, nn_path: ?[]const u8, pps: u32) !void {
-    const nn = if (nn_path) |path| blk: {
+pub const DemoArgs = struct {
+    help: bool = false,
+    nn: ?[]const u8 = null,
+    pps: u32 = 10,
+
+    pub const wrap_len: u32 = 45;
+
+    pub const shorthands = .{
+        .h = "help",
+        .n = "nn",
+        .p = "pps",
+    };
+
+    pub const meta = .{
+        .usage_summary = "demo [options]",
+        .full_text = "Demostrates the perfect clear solver's speed with a tetris playing bot.",
+        .option_docs = .{
+            .help = "Print this help message.",
+            .nn = "The path to the neural network to use for the bot. If not provided, a default built-in network will be used.",
+            .pps = std.fmt.comptimePrint("The target pieces per second of the bot. (default: {})", .{(DemoArgs{}).pps}),
+        },
+    };
+};
+
+pub fn main(allocator: Allocator, args: DemoArgs) !void {
+    const nn = if (args.nn) |path| blk: {
         break :blk try NN.load(allocator, path);
     } else blk: {
         // Use embedded neural network if no path is provided
@@ -95,7 +119,7 @@ pub fn main(allocator: Allocator, nn_path: ?[]const u8, pps: u32) !void {
     };
 
     var render_timer = PeriodicTrigger.init(time.ns_per_s / FRAMERATE, true);
-    var place_timer = PeriodicTrigger.init(time.ns_per_s / pps, false);
+    var place_timer = PeriodicTrigger.init(time.ns_per_s / args.pps, false);
     while (true) {
         var triggered = false;
 

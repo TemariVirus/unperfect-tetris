@@ -1,14 +1,15 @@
 const std = @import("std");
 
-const engine = @import("engine");
-const kicks = engine.kicks;
-
 const zig_args = @import("zig-args");
 
-const root = @import("perfect-tetris");
 const demo = @import("demo.zig");
+const DemoArgs = demo.DemoArgs;
 const display = @import("display.zig");
+const DisplayArgs = display.DisplayArgs;
+const fumen = @import("fumen.zig");
+const FumenArgs = fumen.FumenArgs;
 const validate = @import("validate.zig");
+const ValidateArgs = validate.ValidateArgs;
 
 const Args = struct {
     help: bool = false,
@@ -23,7 +24,7 @@ const Args = struct {
         \\Blazingly fast Tetris perfect clear solver.
         \\
         \\Commands:
-        \\  demo         Demostrates the perfect clear solver's speed with a tetris playing bot.
+        \\  demo         Demostrates the solver's speed with a tetris playing bot.
         \\  display      Displays the perfect clear solutions saved at PATH.
         \\  fumen        Produces a perfect clear solution for each input fumen.
         \\  validate     Validates the perfect clear solutions saved at PATHS.
@@ -46,128 +47,6 @@ const Verb = union(VerbType) {
     display: DisplayArgs,
     fumen: FumenArgs,
     validate: ValidateArgs,
-};
-
-const DemoArgs = struct {
-    help: bool = false,
-    nn: ?[]const u8 = null,
-    pps: u32 = 10,
-
-    pub const wrap_len: u32 = 50;
-
-    pub const shorthands = .{
-        .h = "help",
-        .n = "nn",
-        .p = "pps",
-    };
-
-    pub const meta = .{
-        .usage_summary = "demo [options]",
-        .full_text = "Demostrates the perfect clear solver's speed with a tetris playing bot.",
-        .option_docs = .{
-            .help = "Print this help message.",
-            .nn = "The path to the neural network to use for the bot. If not provided, a default built-in network will be used.",
-            .pps = "The target pieces per second of the bot. (default: 10)",
-        },
-    };
-};
-
-const DisplayArgs = struct {
-    help: bool = false,
-
-    pub const wrap_len: u32 = 50;
-
-    pub const shorthands = .{
-        .h = "help",
-    };
-
-    pub const meta = .{
-        .usage_summary = "display [options] PATH",
-        .full_text = "Displays the perfect clear solutions saved at PATH. Press `enter` to display the next solution.",
-        .option_docs = .{
-            .help = "Print this help message.",
-        },
-    };
-};
-
-const Kicks = enum {
-    none,
-    none180,
-    srs,
-    srs180,
-    srsPlus,
-    srsTetrio,
-
-    pub fn toEngine(self: Kicks) kicks.KickFn {
-        switch (self) {
-            .none => return kicks.none,
-            .none180 => return kicks.none180,
-            .srs => return kicks.srs,
-            .srs180 => return kicks.srs180,
-            .srsPlus => return kicks.srsPlus,
-            .srsTetrio => return kicks.srsTetrio,
-        }
-    }
-};
-
-const OutputMode = enum {
-    edit,
-    list,
-    view,
-};
-
-const FumenArgs = struct {
-    append: bool = false,
-    help: bool = false,
-    kicks: Kicks = .srs,
-    @"output-type": OutputMode = .view,
-
-    pub const wrap_len: u32 = 40;
-
-    pub const shorthands = .{
-        .a = "append",
-        .h = "help",
-        .k = "kicks",
-        .t = "output-type",
-    };
-
-    pub const meta = .{
-        .usage_summary = "fumen [options] INPUTS...",
-        .full_text = "Produces a perfect clear solution for each input fumen. Outputs each solution as a new fumen, separated by newlines.",
-        .option_docs = .{
-            .append = "Append solution frames to input fumen instead of making a new fumen from scratch.",
-            .help = "Print this help message.",
-            // TODO
-            // For kick systems that have a
-            // 180-less and 180 variant, the 180-less variant has no 180
-            // rotations. The 180 variant has 180 rotations but no 180 kicks.
-            // Kick systems
-            .kicks = "Permitted kick/rotation system. " ++
-                enumValuesHelp(FumenArgs, Kicks) ++
-                " (default: srs)",
-            .@"output-type" = "The type of fumen to output. If append is true, this option is ignored. " ++
-                enumValuesHelp(FumenArgs, OutputMode) ++
-                " (default: view)",
-        },
-    };
-};
-
-const ValidateArgs = struct {
-    help: bool = false,
-
-    pub const wrap_len: u32 = 50;
-
-    pub const shorthands = .{
-        .h = "help",
-    };
-
-    pub const meta = .{
-        .usage_summary = "validate [options] PATHS...",
-        .full_text = "Validates the perfect clear solutions saved at PATHS. This will validate that PATHS are valid .pc files and that all solutions are valid perfect clear solutions.",
-        .option_docs = .{
-            .help = "Print this help message.",
-        },
-    };
 };
 
 pub fn main() !void {
@@ -194,8 +73,8 @@ pub fn main() !void {
         return;
     };
 
-    // help flag get consumed by global options, so use that instead. Verb-specific
-    // help flags only exist for the help message.
+    // Help flag gets consumed by global options, so use that instead.
+    // Verb-specific help flags only exist for the help message.
     switch (verb) {
         .demo => |args| {
             if (exe_args.options.help) {
@@ -207,40 +86,40 @@ pub fn main() !void {
                 try stderr.print("PPS option must be greater than 0\n", .{});
                 return;
             }
-            try demo.main(allocator, args.nn, args.pps);
+            try demo.main(allocator, args);
         },
-        .display => |_| {
+        .display => |args| {
             if (exe_args.options.help or exe_args.positionals.len == 0) {
                 try zig_args.printHelp(DisplayArgs, exe_name, stdout);
                 return;
             }
 
-            try display.main(allocator, exe_args.positionals[0]);
+            try display.main(allocator, args, exe_args.positionals[0]);
         },
         .fumen => |args| {
-            _ = args; // autofix
             if (exe_args.options.help or exe_args.positionals.len == 0) {
                 try zig_args.printHelp(FumenArgs, exe_name, stdout);
                 return;
             }
 
-            // for (exe_args.positionals) |path| {
-            // }
+            for (exe_args.positionals) |path| {
+                try fumen.main(allocator, args, path);
+            }
         },
-        .validate => |_| {
+        .validate => |args| {
             if (exe_args.options.help or exe_args.positionals.len == 0) {
                 try zig_args.printHelp(ValidateArgs, exe_name, stdout);
                 return;
             }
 
             for (exe_args.positionals) |path| {
-                try validate.main(path);
+                try validate.main(args, path);
             }
         },
     }
 }
 
-fn enumValuesHelp(ArgsT: type, Enum: type) []const u8 {
+pub fn enumValuesHelp(ArgsT: type, Enum: type) []const u8 {
     const max_option_len = blk: {
         var max_option_len = 0;
         for (@typeInfo(ArgsT).Struct.fields) |field| {
