@@ -11,6 +11,7 @@ const Player = engine.Player(SevenBag);
 const SevenBag = engine.bags.SevenBag;
 
 const nterm = @import("nterm");
+const Colors = nterm.Colors;
 const View = nterm.View;
 
 const root = @import("perfect-tetris");
@@ -53,6 +54,8 @@ pub fn main(allocator: Allocator, nn_path: ?[]const u8, pps: u32) !void {
         FRAMERATE * 2,
         Player.DISPLAY_W + 2,
         Player.DISPLAY_H,
+        null,
+        null,
     );
     defer nterm.deinit();
 
@@ -100,7 +103,7 @@ pub fn main(allocator: Allocator, nn_path: ?[]const u8, pps: u32) !void {
             triggered = true;
             player.tick(dt, 0, &.{});
 
-            fps_view.printAt(0, 0, .white, .black, "{d:.2}FPS", .{nterm.fps()});
+            fps_view.printAt(0, 0, Colors.WHITE, null, "{d:.2}FPS", .{nterm.fps()});
             player.draw();
             nterm.render() catch |err| {
                 // Trying to render after the terminal has been closed results

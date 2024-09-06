@@ -9,6 +9,7 @@ const PieceKind = engine.pieces.PieceKind;
 const Position = engine.pieces.Position;
 
 const nterm = @import("nterm");
+const Colors = nterm.Colors;
 const View = nterm.View;
 
 // Set max sequence length to 16 to handle up to 6-line PCs.
@@ -21,6 +22,8 @@ pub fn main(allocator: Allocator, path: []const u8) !void {
         1,
         0,
         0,
+        null,
+        null,
     );
     defer nterm.deinit();
 
@@ -56,7 +59,7 @@ pub fn main(allocator: Allocator, path: []const u8) !void {
             .width = 10 * 2 + 2,
             .height = 22,
         };
-        matrix_box.drawBox(0, 0, matrix_box.height, matrix_box.width);
+        matrix_box.drawBox(0, 0, matrix_box.height, matrix_box.width, Colors.WHITE, null);
 
         var row_occupancy = [_]u8{0} ** 20;
         const matrix_view = matrix_box.sub(
@@ -137,7 +140,7 @@ fn drawSequence(pieces: []const PieceKind) void {
         .width = WIDTH,
         .height = @intCast(pieces.len * 3 + 2),
     };
-    box_view.drawBox(0, 0, box_view.width, box_view.height);
+    box_view.drawBox(0, 0, box_view.width, box_view.height, Colors.WHITE, null);
 
     const box = box_view.sub(1, 1, box_view.width - 2, box_view.height - 2);
     for (pieces, 0..) |p, i| {
