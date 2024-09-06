@@ -19,7 +19,15 @@ const Args = struct {
 
     pub const meta = .{
         .usage_summary = "COMMAND [options] [INPUT]",
-        .full_text = "Blazingly fast Tetris perfect clear solver.",
+        .full_text =
+        \\Blazingly fast Tetris perfect clear solver.
+        \\
+        \\Commands:
+        \\  demo         Demostrates the perfect clear solver's speed with a tetris playing bot.
+        \\  display      Displays the perfect clear solutions saved at PATH.
+        \\  fumen        Produces a perfect clear solution for each input fumen.
+        \\  validate     Validates the perfect clear solutions saved at PATHS.
+        ,
         .option_docs = .{
             .help = "Print this help message.",
         },

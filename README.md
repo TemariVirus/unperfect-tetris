@@ -35,7 +35,8 @@ perfect-tetris display [options] PATH
 ```
 
 Displays the perfect clear solutions saved at `PATH`. Press `enter` to display
-the next solution.
+the next solution. To seek to a specific solution, type the solution number and
+press `enter`.
 
 #### Options
 
