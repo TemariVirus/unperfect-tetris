@@ -4,6 +4,7 @@
 const std = @import("std");
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
+const expect = std.testing.expect;
 const PieceKind = @import("engine").pieces.PieceKind;
 
 const MAX_BAG_LEN = 7;
@@ -467,4 +468,40 @@ pub fn SequenceIterator(comptime len: usize, comptime unlocked: usize) type {
             return pieces;
         }
     };
+}
+
+test SequenceIterator {
+    const COUNTS = [_]u64{
+        0,
+        7,
+        28,
+        196,
+        1_365,
+        9_198,
+        57_750,
+        326_340,
+        1_615_320,
+        6_849_360,
+        24_857_280,
+        // 79_516_080,
+        // 247_474_080,
+        // 880_180_560,
+        // 3_683_700_720,
+        // 15_528_492_000,
+        // 57_596_696_640,
+        // 189_672_855_120,
+        // 549_973_786_320,
+        // 1_554_871_505_040,
+    };
+
+    inline for (3..COUNTS.len) |i| {
+        var iter = SequenceIterator(i, @min(6, i - 1)).init(std.testing.allocator);
+        defer iter.deinit();
+
+        var count: u64 = 0;
+        while (try iter.next()) |_| {
+            count += 1;
+        }
+        try expect(count == COUNTS[i]);
+    }
 }

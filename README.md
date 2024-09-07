@@ -207,7 +207,7 @@ starts at 0 at the bottom row and increases upwards.
 
 ## Other interesting information
 
-### Number of possible next sequences (with hold)
+### Number of possible next sequences (with any hold)
 
 | Length | Non-equivalent\*  |
 | ------ | ----------------- |
