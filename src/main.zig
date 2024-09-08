@@ -102,8 +102,8 @@ pub fn main() !void {
                 return;
             }
 
-            for (exe_args.positionals) |path| {
-                try fumen.main(allocator, args, path);
+            for (exe_args.positionals) |fumen_str| {
+                try fumen.main(allocator, args, fumen_str);
             }
         },
         .validate => |args| {
