@@ -4,7 +4,7 @@ const assert = std.debug.assert;
 const expect = std.testing.expect;
 
 const engine = @import("engine");
-const GameState = engine.GameState(SevenBag);
+const GameState = engine.GameState;
 const KickFn = engine.kicks.KickFn;
 const PieceKind = engine.pieces.PieceKind;
 const SevenBag = engine.bags.SevenBag;
@@ -33,8 +33,9 @@ pub const FindPcError = error{
 /// Returns an error if no perfect clear exists, or if the number of pieces needed
 /// exceeds `max_pieces`.
 pub fn findPc(
+    comptime BagType: type,
     allocator: Allocator,
-    game: GameState,
+    game: GameState(BagType),
     nn: NN,
     min_height: u3,
     placements: []Placement,
@@ -71,7 +72,7 @@ pub fn findPc(
         pieces_needed = 5;
     }
 
-    const pieces = try getPieces(allocator, game, placements.len + 1);
+    const pieces = try getPieces(BagType, allocator, game, placements.len + 1);
     defer allocator.free(pieces);
 
     var cache = NodeSet.init(allocator);
@@ -115,7 +116,12 @@ pub fn findPc(
 }
 
 /// Extracts `pieces_count` pieces from the game state, in the format [current, hold, next...].
-pub fn getPieces(allocator: Allocator, game: GameState, pieces_count: usize) ![]PieceKind {
+pub fn getPieces(
+    comptime BagType: type,
+    allocator: Allocator,
+    game: GameState(BagType),
+    pieces_count: usize,
+) ![]PieceKind {
     if (pieces_count == 0) {
         return &.{};
     }
@@ -283,7 +289,7 @@ fn orderScore(playfield: BoardMask, max_height: u3, nn: NN) f32 {
 test "4-line PC" {
     const allocator = std.testing.allocator;
 
-    var gamestate = GameState.init(SevenBag.init(0), engine.kicks.srsPlus);
+    var gamestate = GameState(SevenBag).init(SevenBag.init(0), engine.kicks.srsPlus);
 
     const nn = try NN.load(allocator, "NNs/Fast2.json");
     defer nn.deinit(allocator);
@@ -291,7 +297,7 @@ test "4-line PC" {
     const placements = try allocator.alloc(Placement, 10);
     defer allocator.free(placements);
 
-    const solution = try findPc(allocator, gamestate, nn, 0, placements);
+    const solution = try findPc(SevenBag, allocator, gamestate, nn, 0, placements);
     try expect(solution.len == 10);
 
     for (solution[0 .. solution.len - 1]) |placement| {

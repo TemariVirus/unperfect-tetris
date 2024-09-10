@@ -363,7 +363,7 @@ fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
         const gamestate = GameState.init(bag, engine.kicks.srs);
 
         // Optimize for 4 line PCs
-        const solution = pc.findPc(allocator, gamestate, nn, HEIGHT, placements) catch |e| {
+        const solution = pc.findPc(SevenBag, allocator, gamestate, nn, HEIGHT, placements) catch |e| {
             if (e != pc.FindPcError.SolutionTooLong) {
                 return e;
             } else {
