@@ -10,32 +10,38 @@ const Color = ColorArray.PackedColor;
 const ColorArray = engine.player.ColorArray;
 const Facing = engine.pieces.Facing;
 const GameState = engine.GameState(FixedBag);
-const KickFn = @import("engine").kicks.KickFn;
+const KickFn = engine.kicks.KickFn;
 const Piece = engine.pieces.Piece;
 const PieceKind = engine.pieces.PieceKind;
 const Position = engine.pieces.Position;
 
+const FumenArgs = @import("root.zig").FumenArgs;
+const Placement = @import("perfect-tetris").Placement;
+
+const FumenReader = @This();
 const NextArray = std.ArrayList(PieceKind);
 
-const Self = @This();
+const FIELD_WIDTH = 10;
+const FIELD_HEIGHT = 24;
+const FIELD_LEN = FIELD_WIDTH * FIELD_HEIGHT;
 
-const b64_encode_table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-const b64_decode_table = blk: {
+const b64_encode = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const b64_decode = blk: {
     var table = [_]?u6{null} ** 256;
-    for (b64_encode_table, 0..) |char, i| {
+    for (b64_encode, 0..) |char, i| {
         table[char] = i;
     }
     break :blk table;
 };
 
-const caption_encode_table = blk: {
-    var table = [_]?u6{null} ** 256;
-    for (caption_decode_table, 0..) |char, i| {
+const caption_encode = blk: {
+    var table = [_]?u7{null} ** 256;
+    for (caption_decode, 0..) |char, i| {
         table[char] = i;
     }
     break :blk table;
 };
-const caption_decode_table =
+const caption_decode =
     \\ !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~
 ;
 
@@ -43,7 +49,7 @@ allocator: Allocator,
 data: []const u8,
 pos: usize = 0,
 // Extra data kept accross pages for bookkeeping
-field: [240]FumenBlock = [_]FumenBlock{.empty} ** 240,
+field: [FIELD_LEN]FumenBlock = [_]FumenBlock{.empty} ** FIELD_LEN,
 field_repeat: u6 = 0,
 hold: ?PieceKind = null,
 current: ?PieceKind = null,
@@ -139,6 +145,15 @@ const FumenRotation = enum(u2) {
             .west => .left,
         };
     }
+
+    pub fn fromEngine(self: Facing) FumenRotation {
+        return switch (self) {
+            .down => .south,
+            .right => .east,
+            .up => .north,
+            .left => .west,
+        };
+    }
 };
 
 pub const AllocOrFumenError = Allocator.Error || FumenError;
@@ -147,37 +162,48 @@ pub const FumenError = error{
     InvalidBlock,
     InvalidCaption,
     InvalidFieldLength,
+    InvalidFieldRepeat,
     InvalidPieceLocation,
     InvalidPieceLetter,
     InvalidQuizCaption,
     InvalidQuizPiece,
+    NotQuiz,
     UnsupportedFumenVersion,
 };
 
 pub const ParsedFumen = struct {
+    reader: FumenReader,
     playfield: BoardMask,
     hold: ?PieceKind,
     next: []PieceKind,
 
-    pub fn init(
-        fumen_playfield: [240]FumenBlock,
-        hold: ?PieceKind,
-        next: []PieceKind,
-    ) ParsedFumen {
+    pub fn init(reader: *FumenReader) AllocOrFumenError!ParsedFumen {
         var playfield = BoardMask{};
-        for (0..23) |y| {
-            for (0..10) |x| {
-                playfield.set(x, 22 - y, fumen_playfield[y * 10 + x] != .empty);
+        for (0..FIELD_HEIGHT - 1) |y| {
+            for (0..FIELD_WIDTH) |x| {
+                playfield.set(x, FIELD_HEIGHT - 2 - y, reader.field[y * FIELD_WIDTH + x] != .empty);
             }
         }
+
+        if (reader.current) |current| {
+            try reader.next.append(current);
+        }
+        mem.reverse(PieceKind, reader.next.items);
+        if (reader.next.items.len == 0) {
+            return FumenError.NotQuiz;
+        }
+        const next = try reader.next.toOwnedSlice();
+
         return .{
+            .reader = reader.*,
             .playfield = playfield,
-            .hold = hold,
+            .hold = reader.hold,
             .next = next,
         };
     }
 
     pub fn deinit(self: ParsedFumen, allocator: Allocator) void {
+        self.reader.deinit();
         allocator.free(self.next);
     }
 
@@ -192,32 +218,154 @@ pub const ParsedFumen = struct {
     }
 };
 
-pub fn parse(allocator: Allocator, fumen: []const u8) AllocOrFumenError!ParsedFumen {
-    var reader = try Self.init(allocator, fumen);
-    defer reader.deinit();
+const QuizWriter = struct {
+    buf: [4]u8 = undefined,
+    pos: usize = 0,
 
+    fn writeRaw(self: *QuizWriter, writer: anytype, char: u8) !void {
+        assert(std.mem.indexOfScalar(u8, caption_decode, char) != null);
+        if (self.pos == 4) {
+            var v: u32 = 0;
+            for (0..4) |i| {
+                v *= 96;
+                v += caption_encode[self.buf[3 - i]].?;
+            }
+            try writer.writeAll(&unpoll(5, v));
+            self.pos = 0;
+        }
+
+        self.buf[self.pos] = char;
+        self.pos += 1;
+    }
+
+    pub fn write(self: *QuizWriter, writer: anytype, char: u8) !void {
+        // Assumes char is part of a quiz
+        assert(std.mem.indexOfScalar(u8, "#Q=[]()IOTLJSZ", char) != null);
+
+        if (std.mem.indexOfScalar(u8, "#=[]()", char) == null) {
+            try self.writeRaw(writer, char);
+            return;
+        }
+
+        // Escape characters
+        try self.writeRaw(writer, '%');
+        for (std.fmt.bytesToHex([_]u8{char}, .upper)) |h| {
+            try self.writeRaw(writer, h);
+        }
+    }
+
+    pub fn writeAll(self: *QuizWriter, writer: anytype, char: []const u8) !void {
+        for (char) |c| {
+            try self.write(writer, c);
+        }
+    }
+
+    pub fn flush(self: *QuizWriter, writer: anytype) !void {
+        if (self.pos == 0) {
+            return;
+        }
+
+        @memset(self.buf[self.pos..], caption_decode[0]);
+        try self.writeRaw(writer, caption_decode[0]);
+        self.pos = 0;
+    }
+};
+
+pub fn parse(allocator: Allocator, fumen: []const u8) AllocOrFumenError!ParsedFumen {
+    var reader = try FumenReader.init(allocator, fumen);
     while (reader.pos < reader.data.len) {
         try reader.readPage();
+    }
+
+    if (reader.field_repeat != 0) {
+        return FumenError.InvalidFieldRepeat;
     }
 
     if (reader.current) |current| {
         try reader.next.append(current);
     }
     mem.reverse(PieceKind, reader.next.items);
+    if (reader.next.items.len == 0) {
+        return FumenError.NotQuiz;
+    }
 
-    return ParsedFumen.init(
-        reader.field,
-        reader.hold,
-        try reader.next.toOwnedSlice(),
-    );
+    var parsed = try ParsedFumen.init(&reader);
+    parsed.reader.data = fumen;
+    return parsed;
 }
 
-fn init(allocator: Allocator, fumen: []const u8) FumenError!Self {
+pub fn outputFumen(
+    args: FumenArgs,
+    parsed: ParsedFumen,
+    solution: []const Placement,
+    writer: anytype,
+) !void {
+    // Initialise fumen
+    const input = parsed.reader.data;
+    const start = std.mem.lastIndexOf(u8, input, "115@") orelse unreachable;
+    const end = if (std.mem.indexOfScalar(u8, input[start..], '#')) |i| start + i else input.len;
+    if (args.append) {
+        try writer.writeAll(input[0 .. start - 1]);
+        try writer.writeByte(args.@"output-type".toChr());
+        try writer.writeAll(input[start..end]);
+
+        // Write first page
+        try writer.writeAll(&unpoll(2, 9 * FIELD_LEN - 1));
+        try writer.writeAll(&unpoll(1, 0));
+        try writePieceAndFlags(writer, solution[0], false, false);
+    } else {
+        try writer.writeByte(args.@"output-type".toChr());
+        try writer.writeAll("115@");
+
+        // Write field
+        var block = parsed.reader.field[0];
+        var len: u32 = 0;
+        for (1..FIELD_LEN) |i| {
+            if (parsed.reader.field[i] == block) {
+                len += 1;
+                continue;
+            }
+
+            try writer.writeAll(&unpoll(2, (@as(u32, @intFromEnum(block)) + 8) * FIELD_LEN + len));
+            block = parsed.reader.field[i];
+            len = 0;
+        }
+        try writer.writeAll(&unpoll(2, (@as(u32, @intFromEnum(block)) + 8) * FIELD_LEN + len));
+        // Write field repeat if field is empty
+        if (block == .empty and len == FIELD_LEN - 1) {
+            try writer.writeAll(&unpoll(1, 0));
+        }
+
+        // Write first piece
+        try writePieceAndFlags(writer, solution[0], true, true);
+        // Write caption
+        try writeQuiz(writer, parsed.reader.hold, parsed.next);
+    }
+
+    // Write solution
+    for (solution[1..], 0..) |p, i| {
+        // Assumes that the current fumen is a quiz, so field setting is completely empty
+        if (i % 64 == 0) {
+            try writer.writeAll(&unpoll(2, 9 * FIELD_LEN - 1));
+            try writer.writeAll(&unpoll(1, @min(64, solution.len - i)));
+        }
+
+        try writePieceAndFlags(writer, p, false, false);
+    }
+
+    if (args.append) {
+        try writer.writeAll(input[end..]);
+    }
+
+    try writer.writeByte('\n');
+}
+
+fn init(allocator: Allocator, fumen: []const u8) FumenError!FumenReader {
     // Only version 1.15 is supported
     const start = mem.lastIndexOf(u8, fumen, "115@") orelse
         return FumenError.UnsupportedFumenVersion;
     // Fumen may be a url, remove addons (which come after a '#')
-    const end = mem.indexOfScalar(u8, fumen[start..], '#') orelse fumen.len;
+    const end = if (mem.indexOfScalar(u8, fumen[start..], '#')) |i| start + i else fumen.len;
     return .{
         .allocator = allocator,
         // + 4 to skip the "115@" prefix
@@ -226,14 +374,14 @@ fn init(allocator: Allocator, fumen: []const u8) FumenError!Self {
     };
 }
 
-fn deinit(self: *Self) void {
+fn deinit(self: FumenReader) void {
     self.next.deinit();
 }
 
-fn pollOne(self: *Self) FumenError!u6 {
+fn pollOne(self: *FumenReader) FumenError!u6 {
     // Read until next valid character (fumens sometimes contain '?'s that should be ignored)
     while (self.pos < self.data.len) : (self.pos += 1) {
-        if (b64_decode_table[self.data[self.pos]]) |v| {
+        if (b64_decode[self.data[self.pos]]) |v| {
             self.pos += 1;
             return v;
         }
@@ -241,7 +389,7 @@ fn pollOne(self: *Self) FumenError!u6 {
     return FumenError.EndOfData;
 }
 
-fn poll(self: *Self, n: usize) FumenError!u32 {
+fn poll(self: *FumenReader, n: usize) FumenError!u32 {
     assert(n <= 5);
 
     var result: u32 = 0;
@@ -251,7 +399,19 @@ fn poll(self: *Self, n: usize) FumenError!u32 {
     return result;
 }
 
-fn readField(self: *Self) FumenError!void {
+fn unpoll(comptime n: usize, v: u32) [n]u8 {
+    var result = [_]u8{undefined} ** n;
+    var _v = v;
+    for (0..n) |i| {
+        result[i] = b64_encode[_v % 64];
+        _v /= 64;
+    }
+
+    assert(_v == 0);
+    return result;
+}
+
+fn readField(self: *FumenReader) FumenError!void {
     if (self.field_repeat > 0) {
         self.field_repeat -= 1;
         return;
@@ -269,10 +429,10 @@ fn readField(self: *Self) FumenError!void {
     while (total < self.field.len) {
         const run = try self.poll(2);
 
-        const len = (run % 240) + 1;
+        const len = (run % FIELD_LEN) + 1;
         for (total..total + len) |i| {
             // Don't substract 8 yet to prevent underflow
-            const block_temp = @intFromEnum(self.field[i]) + (run / 240);
+            const block_temp = @intFromEnum(self.field[i]) + (run / FIELD_LEN);
             if (block_temp < 8 or block_temp > 16) {
                 return FumenError.InvalidBlock;
             }
@@ -293,7 +453,7 @@ fn boolFromInt(x: u1) bool {
     };
 }
 
-fn readPieceAndFlags(self: *Self) FumenError!struct {
+fn readPieceAndFlags(self: *FumenReader) FumenError!struct {
     ?Piece,
     ?Position,
     struct {
@@ -320,13 +480,13 @@ fn readPieceAndFlags(self: *Self) FumenError!struct {
     };
 
     const pos = blk: {
-        const location = v % 240;
-        break :blk if (piece) |_| Position{
-            .x = @intCast(location % 10),
-            .y = @intCast(location / 10),
-        } else null;
+        const location = v % FIELD_LEN;
+        break :blk if (piece) |p| (Position{
+            .x = @intCast(location % FIELD_WIDTH),
+            .y = @intCast(location / FIELD_WIDTH),
+        }).add(getOffset(p)) else null;
     };
-    v /= 240;
+    v /= FIELD_LEN;
 
     const raise = boolFromInt(@intCast(v % 2));
     v /= 2;
@@ -352,7 +512,43 @@ fn readPieceAndFlags(self: *Self) FumenError!struct {
     };
 }
 
-fn readCaption(self: *Self) AllocOrFumenError![]u8 {
+fn writePieceAndFlags(
+    writer: anytype,
+    p: Placement,
+    has_caption: bool,
+    color: bool,
+) !void {
+    // flag_lock = true
+    var v: u32 = 0;
+    // flag_comment
+    v *= 2;
+    v += if (has_caption) 1 else 0;
+    // flag_color
+    v *= 2;
+    v += if (color) 1 else 0;
+    // flag_mirror = false
+    v *= 2;
+    v += 0;
+    // flag_raise = false
+    v *= 2;
+    v += 0;
+    // location
+    v *= 240;
+    const offset = getOffset(p.piece);
+    const x: u32 = @intCast(p.pos.x - offset.x);
+    const y: u32 = @intCast(FIELD_HEIGHT - 2 - (p.pos.y + offset.y));
+    v += y * FIELD_WIDTH + x;
+    // rotation
+    v *= 4;
+    v += @intFromEnum(FumenRotation.fromEngine(p.piece.facing));
+    // Piece
+    v *= 8;
+    v += @intFromEnum(FumenBlock.fromPieceKind(p.piece.kind));
+
+    try writer.writeAll(&unpoll(3, v));
+}
+
+fn readCaption(self: *FumenReader) AllocOrFumenError![]u8 {
     const len = try self.poll(2);
     var caption = try std.ArrayList(u8).initCapacity(self.allocator, len);
     errdefer caption.deinit();
@@ -361,10 +557,10 @@ fn readCaption(self: *Self) AllocOrFumenError![]u8 {
     while (i < len) : (i += 4) {
         var v = try self.poll(5);
         for (0..@min(4, len - i)) |_| {
-            if (v % 96 >= caption_decode_table.len) {
+            if (v % 96 >= caption_decode.len) {
                 return FumenError.InvalidCaption;
             }
-            caption.appendAssumeCapacity(caption_decode_table[v % 96]);
+            caption.appendAssumeCapacity(caption_decode[v % 96]);
             v /= 96;
         }
     }
@@ -424,7 +620,7 @@ fn readPieceKind(char: u8) ?PieceKind {
     };
 }
 
-fn readQuiz(self: *Self, caption: []const u8) AllocOrFumenError!void {
+fn readQuiz(self: *FumenReader, caption: []const u8) AllocOrFumenError!void {
     // Hold piece
     var i: usize = 0;
     if (caption[i] != '[') {
@@ -461,7 +657,8 @@ fn readQuiz(self: *Self, caption: []const u8) AllocOrFumenError!void {
     i += 1;
 
     self.next.clearRetainingCapacity();
-    try self.next.ensureTotalCapacity(caption.len - i);
+    // Leave an empty slot for the current piece
+    try self.next.ensureTotalCapacityPrecise(caption.len - i + 1);
     for (i..caption.len) |j| {
         const piece_kind = readPieceKind(caption[j]) orelse
             return FumenError.InvalidPieceLetter;
@@ -470,147 +667,82 @@ fn readQuiz(self: *Self, caption: []const u8) AllocOrFumenError!void {
     mem.reverse(PieceKind, self.next.items);
 }
 
-fn getMinos(piece: Piece) [4]Position {
+fn pieceKindStr(piece: PieceKind) u8 {
+    return switch (piece) {
+        .i => 'I',
+        .o => 'O',
+        .t => 'T',
+        .l => 'L',
+        .j => 'J',
+        .s => 'S',
+        .z => 'Z',
+    };
+}
+
+fn writeQuiz(writer: anytype, hold: ?PieceKind, next: []const PieceKind) !void {
+    assert(next.len > 0);
+    // Write length
+    try writer.writeAll(&unpoll(
+        2,
+        @intCast(19 + next.len + @as(u32, if (hold == null) 0 else 1)),
+    ));
+
+    // Quiz prefix and hold piece
+    var qw = QuizWriter{};
+    try qw.writeAll(writer, "#Q=[");
+    if (hold) |h| {
+        try qw.write(writer, pieceKindStr(h));
+    }
+    try qw.write(writer, ']');
+
+    // Current piece
+    try qw.write(writer, '(');
+    try qw.write(writer, pieceKindStr(next[0]));
+    try qw.write(writer, ')');
+
+    // Next pieces
+    for (next[1..]) |p| {
+        try qw.write(writer, pieceKindStr(p));
+    }
+
+    try qw.flush(writer);
+}
+
+fn getOffset(piece: Piece) Position {
     return switch (piece.kind) {
         .i => switch (piece.facing) {
-            .up, .down => [_]Position{
-                .{ .x = -1, .y = 0 },
-                .{ .x = 0, .y = 0 },
-                .{ .x = 1, .y = 0 },
-                .{ .x = 2, .y = 0 },
-            },
-            .left, .right => [_]Position{
-                .{ .x = 0, .y = -1 },
-                .{ .x = 0, .y = 0 },
-                .{ .x = 0, .y = 1 },
-                .{ .x = 0, .y = 2 },
-            },
+            .up => .{ .x = -1, .y = 2 },
+            .right => .{ .x = -2, .y = 2 },
+            .down => .{ .x = -1, .y = 1 },
+            .left => .{ .x = -1, .y = 2 },
         },
-        .o => [_]Position{
-            .{ .x = 0, .y = 0 },
-            .{ .x = 1, .y = 0 },
-            .{ .x = 0, .y = 1 },
-            .{ .x = 1, .y = 1 },
-        },
-        .t => switch (piece.facing) {
-            .up => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = -1, .y = 0 },
-                .{ .x = 1, .y = 0 },
-                .{ .x = 0, .y = -1 },
-            },
-            .right => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = 0, .y = -1 },
-                .{ .x = 0, .y = 1 },
-                .{ .x = 1, .y = 0 },
-            },
-            .down => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = -1, .y = 0 },
-                .{ .x = 1, .y = 0 },
-                .{ .x = 0, .y = 1 },
-            },
-            .left => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = 0, .y = -1 },
-                .{ .x = 0, .y = 1 },
-                .{ .x = -1, .y = 0 },
-            },
-        },
-        .l => switch (piece.facing) {
-            .up => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = -1, .y = 0 },
-                .{ .x = 1, .y = 0 },
-                .{ .x = 1, .y = -1 },
-            },
-            .right => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = 0, .y = -1 },
-                .{ .x = 0, .y = 1 },
-                .{ .x = 1, .y = 1 },
-            },
-            .down => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = -1, .y = 0 },
-                .{ .x = 1, .y = 0 },
-                .{ .x = -1, .y = 1 },
-            },
-            .left => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = 0, .y = -1 },
-                .{ .x = 0, .y = 1 },
-                .{ .x = -1, .y = -1 },
-            },
-        },
-        .j => switch (piece.facing) {
-            .up => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = -1, .y = 0 },
-                .{ .x = 1, .y = 0 },
-                .{ .x = -1, .y = -1 },
-            },
-            .right => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = 0, .y = -1 },
-                .{ .x = 0, .y = 1 },
-                .{ .x = 1, .y = -1 },
-            },
-            .down => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = -1, .y = 0 },
-                .{ .x = 1, .y = 0 },
-                .{ .x = 1, .y = 1 },
-            },
-            .left => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = 0, .y = -1 },
-                .{ .x = 0, .y = 1 },
-                .{ .x = -1, .y = 1 },
-            },
-        },
+        .o => .{ .x = -1, .y = 2 },
+        .t, .j, .l => .{ .x = -1, .y = 1 },
         .s => switch (piece.facing) {
-            .up, .down => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = 1, .y = 0 },
-                .{ .x = -1, .y = 1 },
-                .{ .x = 0, .y = 1 },
-            },
-            .left, .right => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = 0, .y = 1 },
-                .{ .x = -1, .y = 0 },
-                .{ .x = -1, .y = -1 },
-            },
+            .up => .{ .x = -1, .y = 2 },
+            .right => .{ .x = -2, .y = 1 },
+            .down => .{ .x = -1, .y = 1 },
+            .left => .{ .x = -1, .y = 1 },
         },
         .z => switch (piece.facing) {
-            .up, .down => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = -1, .y = 0 },
-                .{ .x = 0, .y = 1 },
-                .{ .x = 1, .y = 1 },
-            },
-            .left, .right => [_]Position{
-                .{ .x = 0, .y = 0 },
-                .{ .x = 0, .y = 1 },
-                .{ .x = 1, .y = 0 },
-                .{ .x = 1, .y = -1 },
-            },
+            .up => .{ .x = -1, .y = 2 },
+            .right => .{ .x = -1, .y = 1 },
+            .down => .{ .x = -1, .y = 1 },
+            .left => .{ .x = 0, .y = 1 },
         },
     };
 }
 
-fn clearLines(self: *Self) void {
+fn clearLines(self: *FumenReader) void {
     // Bottom row should not be cleared, start from second bottom row
-    var y: usize = 23;
+    var y: usize = FIELD_HEIGHT - 1;
     var cleared: usize = 0;
     while (y > 0) {
         y -= 1;
         var full = true;
-        for (0..10) |x| {
-            self.field[(y + cleared) * 10 + x] = self.field[y * 10 + x];
-            if (self.field[y * 10 + x] == .empty) {
+        for (0..FIELD_WIDTH) |x| {
+            self.field[(y + cleared) * FIELD_WIDTH + x] = self.field[y * FIELD_WIDTH + x];
+            if (self.field[y * FIELD_WIDTH + x] == .empty) {
                 full = false;
             }
         }
@@ -621,30 +753,30 @@ fn clearLines(self: *Self) void {
 
     // Add empty rows at the top
     for (0..cleared) |i| {
-        for (0..10) |x| {
-            self.field[i * 10 + x] = .empty;
+        for (0..FIELD_WIDTH) |x| {
+            self.field[i * FIELD_WIDTH + x] = .empty;
         }
     }
 }
 
-fn riseField(self: *Self) void {
-    for (0..self.field.len - 10) |i| {
-        self.field[i] = self.field[i + 10];
+fn riseField(self: *FumenReader) void {
+    for (0..self.field.len - FIELD_WIDTH) |i| {
+        self.field[i] = self.field[i + FIELD_WIDTH];
     }
     // Empty botom row
-    for (self.field.len - 10..self.field.len) |i| {
+    for (self.field.len - FIELD_WIDTH..self.field.len) |i| {
         self.field[i] = .empty;
     }
 }
 
-fn mirrorField(self: *Self) void {
+fn mirrorField(self: *FumenReader) void {
     // Don't mirror bottom row
-    for (0..23) |y| {
-        mem.reverse(FumenBlock, self.field[y * 10 .. (y + 1) * 10]);
+    for (0..FIELD_HEIGHT - 1) |y| {
+        mem.reverse(FumenBlock, self.field[y * FIELD_WIDTH .. (y + 1) * FIELD_WIDTH]);
     }
 }
 
-fn readPage(self: *Self) AllocOrFumenError!void {
+fn readPage(self: *FumenReader) AllocOrFumenError!void {
     try self.readField();
     const piece, const pos, const flags = try self.readPieceAndFlags();
 
@@ -671,23 +803,30 @@ fn readPage(self: *Self) AllocOrFumenError!void {
 
     // Place piece
     if (piece) |p| blk: {
-        assert(pos != null);
+        for (0..4) |x| {
+            for (0..4) |y| {
+                if (!p.mask().get(x, y)) {
+                    continue;
+                }
 
-        for (getMinos(p)) |mino| {
-            const mino_pos = pos.?.add(mino);
-            // Pieces cannot be placed in bottom row, but can extend out of the top
-            if (mino_pos.x < 0 or mino_pos.x >= 10 or mino_pos.y >= 23) {
-                return FumenError.InvalidPieceLocation;
+                const mino_pos = pos.?.add(.{
+                    .x = @intCast(x),
+                    .y = -@as(i8, @intCast(y)),
+                });
+                // Pieces cannot be placed in bottom row, but can extend out of the top
+                if (mino_pos.x < 0 or mino_pos.x >= FIELD_WIDTH or mino_pos.y >= FIELD_HEIGHT - 1) {
+                    return FumenError.InvalidPieceLocation;
+                }
+                const index: usize = if (@as(i32, mino_pos.y) * FIELD_WIDTH + mino_pos.x < 0)
+                    continue
+                else
+                    @intCast(@as(i32, mino_pos.y) * FIELD_WIDTH + mino_pos.x);
+                // Pieces should not overlap with existing blocks
+                if (self.field[index] != .empty) {
+                    return FumenError.InvalidPieceLocation;
+                }
+                self.field[index] = FumenBlock.fromPieceKind(p.kind);
             }
-            const index: usize = if (@as(i32, mino_pos.y) * 10 + mino_pos.x < 0)
-                continue
-            else
-                @intCast(@as(i32, mino_pos.y) * 10 + mino_pos.x);
-            // Pieces should not overlap with existing blocks
-            if (self.field[index] != .empty) {
-                return FumenError.InvalidPieceLocation;
-            }
-            self.field[index] = FumenBlock.fromPieceKind(p.kind);
         }
 
         // Don't update quiz state if quiz is over

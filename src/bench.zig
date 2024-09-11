@@ -43,7 +43,14 @@ pub fn pcBenchmark(comptime height: u8) !void {
         const gamestate = GameState.init(SevenBag.init(seed), engine.kicks.srsPlus);
 
         const solve_start = time.nanoTimestamp();
-        const solution = try pc.findPc(allocator, gamestate, nn, height, placements);
+        const solution = try pc.findPc(
+            SevenBag,
+            allocator,
+            gamestate,
+            nn,
+            height,
+            placements,
+        );
         const time_taken: u64 = @intCast(time.nanoTimestamp() - solve_start);
         max_time = @max(max_time, time_taken);
         std.mem.doNotOptimizeAway(solution);

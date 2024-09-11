@@ -107,8 +107,17 @@ pub fn main() !void {
                 return;
             }
 
+            const nn = try getNnOrDefault(allocator, args.nn);
+            defer nn.deinit(allocator);
+
             for (exe_args.positionals) |fumen_str| {
-                try fumen.main(allocator, args, fumen_str);
+                try fumen.main(
+                    allocator,
+                    args,
+                    fumen_str,
+                    nn,
+                    std.io.getStdOut(),
+                );
             }
         },
         .validate => |args| {

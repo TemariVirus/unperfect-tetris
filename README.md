@@ -49,7 +49,7 @@ perfect-tetris fumen [options] INPUTS...
 ```
 
 Produces a perfect clear solution for each input fumen. Outputs each solution
-as a new fumen, separated by newlines.
+to stdout as a new fumen, separated by newlines.
 
 #### Options
 
@@ -58,11 +58,15 @@ fumen from scratch.
 
 `-h`, `--help` Print the help message.
 
-`-k`, `--kicks` Permitted kick/rotation system. Supported Values:
-[`none`, `none180`, `srs`, `srs180`, `srsPlus`, `srsTetrio`] (default: `srs`)
+`-k`, `--kicks` Kick/rotation system to use. For kick systems that have a
+180-less and 180 variant, the 180-less variant has no 180 rotations. The 180
+variant has 180 rotations but no 180 kicks. Supported Values:
+[none,none180,srs,srs180,srsPlus,srsTetrio] (default: srs)
 
 `-t`, `--output-type` The type of fumen to output. If append is true, this
 option is ignored. Supported Values: [`edit`, `list`, `view`] (default: `view`)
+
+`-v`, `--verbose` Print solve time and solution length to stderr.
 
 ### Validate
 

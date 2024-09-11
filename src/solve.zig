@@ -415,6 +415,7 @@ fn solveThread(buf: *SolutionBuffer) !void {
         var solved: usize = 0;
         for (sequences) |seq| {
             _ = pc.findPc(
+                SevenBag,
                 allocator,
                 gameWithPieces(&unpackSequence(seq, NEXT_LEN + 1)),
                 nn,
