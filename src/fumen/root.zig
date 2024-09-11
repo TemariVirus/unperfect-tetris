@@ -1,18 +1,12 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const assert = std.debug.assert;
-const json = std.json;
-const unicode = std.unicode;
-
-const NN = @import("perfect-tetris").NN;
-const enumValuesHelp = @import("../main.zig").enumValuesHelp;
 
 const kicks = @import("engine").kicks;
 
-const FumenReader = @import("FumenReader.zig");
+const enumValuesHelp = @import("../main.zig").enumValuesHelp;
+const getNnOrDefault = @import("../main.zig").getNnOrDefault;
 
-const NNInner = @import("zmai").genetic.neat.NN;
-const nn_json = @embedFile("nn_json");
+const FumenReader = @import("FumenReader.zig");
 
 pub const Kicks = enum {
     none,
@@ -22,15 +16,15 @@ pub const Kicks = enum {
     srsPlus,
     srsTetrio,
 
-    pub fn toEngine(self: Kicks) kicks.KickFn {
-        switch (self) {
-            .none => return kicks.none,
-            .none180 => return kicks.none180,
-            .srs => return kicks.srs,
-            .srs180 => return kicks.srs180,
-            .srsPlus => return kicks.srsPlus,
-            .srsTetrio => return kicks.srsTetrio,
-        }
+    pub fn toEngine(self: Kicks) *const kicks.KickFn {
+        return &switch (self) {
+            .none => kicks.none,
+            .none180 => kicks.none180,
+            .srs => kicks.srs,
+            .srs180 => kicks.srs180,
+            .srsPlus => kicks.srsPlus,
+            .srsTetrio => kicks.srsTetrio,
+        };
     }
 };
 
@@ -44,6 +38,7 @@ pub const FumenArgs = struct {
     append: bool = false,
     help: bool = false,
     kicks: Kicks = .srs,
+    nn: ?[]const u8 = null,
     @"output-type": OutputMode = .view,
 
     pub const wrap_len: u32 = 40;
@@ -52,6 +47,7 @@ pub const FumenArgs = struct {
         .a = "append",
         .h = "help",
         .k = "kicks",
+        .n = "nn",
         .t = "output-type",
     };
 
@@ -75,6 +71,7 @@ pub const FumenArgs = struct {
                     " (default: {s})",
                 .{@tagName((FumenArgs{}).kicks)},
             ),
+            .nn = "The path to the neural network to use for the bot. If not provided, a default built-in network will be used.",
             .@"output-type" = std.fmt.comptimePrint(
                 "The type of fumen to output. If append is true, this option is ignored. " ++
                     enumValuesHelp(FumenArgs, OutputMode) ++
@@ -85,27 +82,14 @@ pub const FumenArgs = struct {
     };
 };
 
-fn getNn(allocator: Allocator) !NN {
-    const obj = try json.parseFromSlice(NNInner.NNJson, allocator, nn_json, .{
-        .ignore_unknown_fields = true,
-    });
-    defer obj.deinit();
-
-    var inputs_used: [NN.INPUT_COUNT]bool = undefined;
-    const _nn = try NNInner.fromJson(allocator, obj.value, &inputs_used);
-    return NN{
-        .net = _nn,
-        .inputs_used = inputs_used,
-    };
-}
-
 // TODO: Implement fumen command
 pub fn main(allocator: Allocator, args: FumenArgs, fumen: []const u8) !void {
-    _ = args; // autofix
+    const parsed = try FumenReader.parse(allocator, fumen);
+    defer parsed.deinit(allocator);
 
-    // Solving step
-    const nn = try getNn(allocator);
+    const nn = try getNnOrDefault(allocator, args.nn);
     defer nn.deinit(allocator);
 
-    try FumenReader.parse(allocator, fumen);
+    const gamestate = parsed.toGameState(args.kicks.toEngine());
+    std.debug.print("{}\n", .{gamestate});
 }

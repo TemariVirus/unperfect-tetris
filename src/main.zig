@@ -1,6 +1,6 @@
 const std = @import("std");
-
-const zig_args = @import("zig-args");
+const Allocator = std.mem.Allocator;
+const json = std.json;
 
 const demo = @import("demo.zig");
 const DemoArgs = demo.DemoArgs;
@@ -10,6 +10,11 @@ const fumen = @import("fumen/root.zig");
 const FumenArgs = fumen.FumenArgs;
 const validate = @import("validate.zig");
 const ValidateArgs = validate.ValidateArgs;
+
+const NN = @import("perfect-tetris").NN;
+const NNInner = @import("zmai").genetic.neat.NN;
+
+const zig_args = @import("zig-args");
 
 const Args = struct {
     help: bool = false,
@@ -153,4 +158,23 @@ pub fn enumValuesHelp(ArgsT: type, Enum: type) []const u8 {
     writer.writeByte(']') catch unreachable;
 
     return str.items;
+}
+
+pub fn getNnOrDefault(allocator: Allocator, nn_path: ?[]const u8) !NN {
+    if (nn_path) |path| {
+        return try NN.load(allocator, path);
+    }
+
+    // Use embedded neural network as default
+    const obj = try json.parseFromSlice(NNInner.NNJson, allocator, @embedFile("nn_json"), .{
+        .ignore_unknown_fields = true,
+    });
+    defer obj.deinit();
+
+    var inputs_used: [NN.INPUT_COUNT]bool = undefined;
+    const _nn = try NNInner.fromJson(allocator, obj.value, &inputs_used);
+    return NN{
+        .net = _nn,
+        .inputs_used = inputs_used,
+    };
 }

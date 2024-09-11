@@ -1,12 +1,16 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
+const Allocator = mem.Allocator;
 const assert = std.debug.assert;
+const mem = std.mem;
 const unicode = std.unicode;
 
 const engine = @import("engine");
+const BoardMask = engine.bit_masks.BoardMask;
 const Color = ColorArray.PackedColor;
 const ColorArray = engine.player.ColorArray;
 const Facing = engine.pieces.Facing;
+const GameState = engine.GameState(FixedBag);
+const KickFn = @import("engine").kicks.KickFn;
 const Piece = engine.pieces.Piece;
 const PieceKind = engine.pieces.PieceKind;
 const Position = engine.pieces.Position;
@@ -43,25 +47,30 @@ field: [240]FumenBlock = [_]FumenBlock{.empty} ** 240,
 field_repeat: u6 = 0,
 hold: ?PieceKind = null,
 current: ?PieceKind = null,
+// Next pieces are stored in reverse order
 next: NextArray,
 
 pub const FixedBag = struct {
-    pieces: []PieceKind,
+    pieces: []const PieceKind,
     index: usize = 0,
 
-    pub fn init(seed: u64) Self {
+    pub fn init(seed: u64) FixedBag {
         _ = seed; // autofix
         return .{ .pieces = &.{} };
     }
 
-    pub fn next(self: *Self) PieceKind {
+    pub fn next(self: *FixedBag) PieceKind {
+        if (self.index >= self.pieces.len) {
+            return undefined;
+        }
+
         defer self.index += 1;
         return self.pieces[self.index];
     }
 
-    pub fn setSeed(self: *Self, seed: u64) void {
-        _ = self; // autofix
+    pub fn setSeed(self: *FixedBag, seed: u64) void {
         _ = seed; // autofix
+        self.index = 0;
     }
 };
 
@@ -145,22 +154,70 @@ pub const FumenError = error{
     UnsupportedFumenVersion,
 };
 
-// TODO: convert reader data to output state
-pub fn parse(allocator: Allocator, fumen: []const u8) AllocOrFumenError!void {
+pub const ParsedFumen = struct {
+    playfield: BoardMask,
+    hold: ?PieceKind,
+    next: []PieceKind,
+
+    pub fn init(
+        fumen_playfield: [240]FumenBlock,
+        hold: ?PieceKind,
+        next: []PieceKind,
+    ) ParsedFumen {
+        var playfield = BoardMask{};
+        for (0..23) |y| {
+            for (0..10) |x| {
+                playfield.set(x, 22 - y, fumen_playfield[y * 10 + x] != .empty);
+            }
+        }
+        return .{
+            .playfield = playfield,
+            .hold = hold,
+            .next = next,
+        };
+    }
+
+    pub fn deinit(self: ParsedFumen, allocator: Allocator) void {
+        allocator.free(self.next);
+    }
+
+    pub fn toGameState(self: ParsedFumen, kicks: *const KickFn) GameState {
+        var gamestate = GameState.init(
+            FixedBag{ .pieces = self.next },
+            kicks,
+        );
+        gamestate.playfield = self.playfield;
+        gamestate.hold_kind = self.hold;
+        return gamestate;
+    }
+};
+
+pub fn parse(allocator: Allocator, fumen: []const u8) AllocOrFumenError!ParsedFumen {
     var reader = try Self.init(allocator, fumen);
     defer reader.deinit();
 
     while (reader.pos < reader.data.len) {
         try reader.readPage();
     }
+
+    if (reader.current) |current| {
+        try reader.next.append(current);
+    }
+    mem.reverse(PieceKind, reader.next.items);
+
+    return ParsedFumen.init(
+        reader.field,
+        reader.hold,
+        try reader.next.toOwnedSlice(),
+    );
 }
 
 fn init(allocator: Allocator, fumen: []const u8) FumenError!Self {
     // Only version 1.15 is supported
-    const start = std.mem.lastIndexOf(u8, fumen, "115@") orelse
+    const start = mem.lastIndexOf(u8, fumen, "115@") orelse
         return FumenError.UnsupportedFumenVersion;
     // Fumen may be a url, remove addons (which come after a '#')
-    const end = std.mem.indexOfScalar(u8, fumen[start..], '#') orelse fumen.len;
+    const end = mem.indexOfScalar(u8, fumen[start..], '#') orelse fumen.len;
     return .{
         .allocator = allocator,
         // + 4 to skip the "115@" prefix
@@ -212,16 +269,14 @@ fn readField(self: *Self) FumenError!void {
     while (total < self.field.len) {
         const run = try self.poll(2);
 
-        // Don't substract 8 yet to prevent underflow
-        const block_temp = @intFromEnum(self.field[total]) + (run / 240);
-        if (block_temp < 8 or block_temp > 16) {
-            return FumenError.InvalidBlock;
-        }
-
-        const block: FumenBlock = @enumFromInt(block_temp - 8);
         const len = (run % 240) + 1;
         for (total..total + len) |i| {
-            self.field[i] = block;
+            // Don't substract 8 yet to prevent underflow
+            const block_temp = @intFromEnum(self.field[i]) + (run / 240);
+            if (block_temp < 8 or block_temp > 16) {
+                return FumenError.InvalidBlock;
+            }
+            self.field[i] = @enumFromInt(block_temp - 8);
         }
         total += len;
     }
@@ -412,7 +467,7 @@ fn readQuiz(self: *Self, caption: []const u8) AllocOrFumenError!void {
             return FumenError.InvalidPieceLetter;
         self.next.appendAssumeCapacity(piece_kind);
     }
-    std.mem.reverse(PieceKind, self.next.items);
+    mem.reverse(PieceKind, self.next.items);
 }
 
 fn getMinos(piece: Piece) [4]Position {
@@ -585,9 +640,7 @@ fn riseField(self: *Self) void {
 fn mirrorField(self: *Self) void {
     // Don't mirror bottom row
     for (0..23) |y| {
-        for (0..10) |x| {
-            self.field[y * 10 + x] = self.field[y * 10 + 9 - x];
-        }
+        mem.reverse(FumenBlock, self.field[y * 10 .. (y + 1) * 10]);
     }
 }
 
@@ -598,9 +651,8 @@ fn readPage(self: *Self) AllocOrFumenError!void {
     if (flags.has_caption) {
         const caption = try self.readCaption();
         defer self.allocator.free(caption);
-        std.debug.print("comment: {s}\n", .{caption});
         // Check for quiz prefix
-        if (std.mem.startsWith(u8, caption, "#Q=")) {
+        if (mem.startsWith(u8, caption, "#Q=")) {
             try self.readQuiz(caption[3..]);
             if (self.current == null) {
                 self.current = self.next.popOrNull();
@@ -627,11 +679,11 @@ fn readPage(self: *Self) AllocOrFumenError!void {
             if (mino_pos.x < 0 or mino_pos.x >= 10 or mino_pos.y >= 23) {
                 return FumenError.InvalidPieceLocation;
             }
-            // Pieces should not overlap with existing blocks
             const index: usize = if (@as(i32, mino_pos.y) * 10 + mino_pos.x < 0)
                 continue
             else
                 @intCast(@as(i32, mino_pos.y) * 10 + mino_pos.x);
+            // Pieces should not overlap with existing blocks
             if (self.field[index] != .empty) {
                 return FumenError.InvalidPieceLocation;
             }
@@ -645,7 +697,7 @@ fn readPage(self: *Self) AllocOrFumenError!void {
 
         assert(self.current != null);
         if (p.kind != self.current) {
-            std.mem.swap(?PieceKind, &self.current, &self.hold);
+            mem.swap(?PieceKind, &self.current, &self.hold);
             if (self.current == null) {
                 self.current = self.next.popOrNull();
             }

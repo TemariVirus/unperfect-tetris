@@ -1,6 +1,5 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const json = std.json;
 const SolutionList = std.ArrayList([]Placement);
 const time = std.time;
 
@@ -19,8 +18,7 @@ const NN = root.NN;
 const pc = root.pc;
 const Placement = root.Placement;
 
-const NNInner = @import("zmai").genetic.neat.NN;
-
+const getNnOrDefault = @import("main.zig").getNnOrDefault;
 const PeriodicTrigger = @import("PeriodicTrigger.zig");
 
 const FRAMERATE = 60;
@@ -53,22 +51,7 @@ pub const DemoArgs = struct {
 };
 
 pub fn main(allocator: Allocator, args: DemoArgs) !void {
-    const nn = if (args.nn) |path| blk: {
-        break :blk try NN.load(allocator, path);
-    } else blk: {
-        // Use embedded neural network if no path is provided
-        const obj = try json.parseFromSlice(NNInner.NNJson, allocator, @embedFile("nn_json"), .{
-            .ignore_unknown_fields = true,
-        });
-        defer obj.deinit();
-
-        var inputs_used: [NN.INPUT_COUNT]bool = undefined;
-        const _nn = try NNInner.fromJson(allocator, obj.value, &inputs_used);
-        break :blk NN{
-            .net = _nn,
-            .inputs_used = inputs_used,
-        };
-    };
+    const nn = try getNnOrDefault(allocator, args.nn);
     defer nn.deinit(allocator);
 
     // Add 2 to create a 1-wide empty boarder on the left and right.
