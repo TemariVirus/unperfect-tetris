@@ -49,7 +49,8 @@ perfect-tetris fumen [options] INPUTS...
 ```
 
 Produces a perfect clear solution for each input fumen. Outputs each solution
-to stdout as a new fumen, separated by newlines.
+to stdout as a new fumen, separated by newlines. Fumen editor:
+[https://fumen.zui.jp/#english.js](https://fumen.zui.jp/#english.js)
 
 #### Options
 

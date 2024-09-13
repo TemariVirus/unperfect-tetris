@@ -70,7 +70,8 @@ pub const FumenArgs = struct {
         .usage_summary = "fumen [options] INPUTS...",
         .full_text =
         \\Produces a perfect clear solution for each input fumen. Outputs each
-        \\solution to stdout as a new fumen, separated by newlines.
+        \\solution to stdout as a new fumen, separated by newlines. Fumen editor:
+        \\https://fumen.zui.jp/#english.js
         ,
         .option_docs = .{
             .append = "Append solution frames to input fumen instead of making a new fumen from scratch.",
