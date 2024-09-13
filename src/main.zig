@@ -15,6 +15,7 @@ const NN = @import("perfect-tetris").NN;
 const NNInner = @import("zmai").genetic.neat.NN;
 
 const zig_args = @import("zig-args");
+const Error = zig_args.Error;
 
 const Args = struct {
     help: bool = false,
@@ -62,14 +63,12 @@ pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
     const stderr = std.io.getStdErr().writer();
 
-    const exe_args = zig_args.parseWithVerbForCurrentProcess(
+    const exe_args = try zig_args.parseWithVerbForCurrentProcess(
         Args,
         Verb,
         allocator,
-        .print,
-    ) catch |e| {
-        return e;
-    };
+        .{ .forward = handleArgsError },
+    );
     defer exe_args.deinit();
 
     const exe_name = std.fs.path.stem(exe_args.executable_name.?);
@@ -131,6 +130,11 @@ pub fn main() !void {
             }
         },
     }
+}
+
+fn handleArgsError(err: Error) !void {
+    try std.io.getStdErr().writer().print("{}\n", .{err});
+    std.process.exit(1);
 }
 
 pub fn enumValuesHelp(ArgsT: type, Enum: type) []const u8 {

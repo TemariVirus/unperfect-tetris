@@ -266,6 +266,7 @@ const QuizWriter = struct {
         }
 
         @memset(self.buf[self.pos..], caption_decode[0]);
+        self.pos = 4;
         try self.writeRaw(writer, caption_decode[0]);
         self.pos = 0;
     }
@@ -273,20 +274,13 @@ const QuizWriter = struct {
 
 pub fn parse(allocator: Allocator, fumen: []const u8) AllocOrFumenError!ParsedFumen {
     var reader = try FumenReader.init(allocator, fumen);
+    errdefer reader.deinit();
+
     while (reader.pos < reader.data.len) {
         try reader.readPage();
     }
-
     if (reader.field_repeat != 0) {
         return FumenError.InvalidFieldRepeat;
-    }
-
-    if (reader.current) |current| {
-        try reader.next.append(current);
-    }
-    mem.reverse(PieceKind, reader.next.items);
-    if (reader.next.items.len == 0) {
-        return FumenError.NotQuiz;
     }
 
     var parsed = try ParsedFumen.init(&reader);

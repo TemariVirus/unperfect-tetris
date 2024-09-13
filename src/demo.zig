@@ -68,6 +68,11 @@ pub fn main(allocator: Allocator, args: DemoArgs) !void {
 
     const settings = engine.GameSettings{
         .g = 0,
+        .display_stats = .{
+            .pps,
+            .app,
+            .sent,
+        },
         .target_mode = .none,
     };
     const player_view = View{
@@ -92,7 +97,7 @@ pub fn main(allocator: Allocator, args: DemoArgs) !void {
     const pc_thread = try std.Thread.spawn(.{
         .allocator = allocator,
     }, pcThread, .{ allocator, nn, player.state, &pc_queue });
-    defer pc_thread.join();
+    pc_thread.detach();
 
     const fps_view = View{
         .left = 1,

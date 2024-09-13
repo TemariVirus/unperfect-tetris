@@ -49,7 +49,7 @@ pub fn findPc(
                 break;
             }
         }
-        break :blk @ctz(full_row + 1) / 10;
+        break :blk (@bitSizeOf(@TypeOf(full_row)) - @clz(full_row)) / BoardMask.WIDTH;
     };
     const bits_set = @popCount(playfield.mask);
     const empty_cells = BoardMask.WIDTH * field_height - bits_set;
@@ -81,7 +81,7 @@ pub fn findPc(
     // 20 is the lowest common multiple of the width of the playfield (10) and the
     // number of cells in a piece (4). 20 / 4 = 5 extra pieces for each bigger
     // perfect clear
-    while (pieces_needed <= pieces.len) : (pieces_needed += 5) {
+    while (pieces_needed <= placements.len) : (pieces_needed += 5) {
         const max_height = (4 * pieces_needed + bits_set) / BoardMask.WIDTH;
         if (max_height < min_height) {
             continue;

@@ -65,7 +65,7 @@ fn buildExe(
     args_module: *Build.Module,
 ) void {
     const exe = b.addExecutable(.{
-        .name = "perfect-tetris",
+        .name = "pc",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,

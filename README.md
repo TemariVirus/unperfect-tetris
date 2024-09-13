@@ -6,7 +6,7 @@ outputs solutions in fumen format.
 ## Usage
 
 ```bash
-perfect-tetris COMMAND [options] [INPUT]
+pc COMMAND [options] [INPUT]
 ```
 
 ## Commands
@@ -14,7 +14,7 @@ perfect-tetris COMMAND [options] [INPUT]
 ### Demo
 
 ```bash
-perfect-tetris demo [options]
+pc demo [options]
 ```
 
 Demostrates the perfect clear solver's speed with a tetris playing bot.
@@ -31,7 +31,7 @@ provided, a default built-in network will be used.
 ### Display
 
 ```bash
-perfect-tetris display [options] PATH
+pc display [options] PATH
 ```
 
 Displays the perfect clear solutions saved at `PATH`. Press `enter` to display
@@ -45,7 +45,7 @@ press `enter`.
 ### Fumen
 
 ```bash
-perfect-tetris fumen [options] INPUTS...
+pc fumen [options] INPUTS...
 ```
 
 Produces a perfect clear solution for each input fumen. Outputs each solution
@@ -72,7 +72,7 @@ option is ignored. Supported Values: [`edit`, `list`, `view`] (default: `view`)
 ### Validate
 
 ```bash
-perfect-tetris validate [options] PATHS...
+pc validate [options] PATHS...
 ```
 
 Validates the perfect clear solutions saved at `PATHS`. This will validate that
