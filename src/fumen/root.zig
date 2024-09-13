@@ -206,7 +206,7 @@ fn findPc(allocator: Allocator, len: usize, gamestate: GameState, nn: NN) ![]Pla
         } else |_| {}
     }
 
-    return try pc_slow.findPc(
+    const solution = try pc_slow.findPc(
         FumenReader.FixedBag,
         allocator,
         gamestate,
@@ -214,6 +214,8 @@ fn findPc(allocator: Allocator, len: usize, gamestate: GameState, nn: NN) ![]Pla
         @intCast(start_height),
         placements,
     );
+    assert(allocator.resize(placements, solution.len));
+    return solution;
 }
 
 test {
