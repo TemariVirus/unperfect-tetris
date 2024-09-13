@@ -1,8 +1,10 @@
 pub const bit_masks = @import("bit_masks.zig");
 const BoardMask = bit_masks.BoardMask;
 pub const movegen = @import("movegen.zig");
+pub const movegen_slow = @import("slow/movegen.zig");
 pub const next = @import("next.zig");
 pub const pc = @import("pc.zig");
+pub const pc_slow = @import("slow/pc.zig");
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;

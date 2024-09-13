@@ -78,6 +78,16 @@ pub fn findPc(
     var cache = NodeSet.init(allocator);
     defer cache.deinit();
 
+    // Pre-allocate a queue for each placement
+    const queues = try allocator.alloc(movegen.MoveQueue, placements.len);
+    for (0..queues.len) |i| {
+        queues[i] = movegen.MoveQueue.init(allocator, {});
+    }
+    defer allocator.free(queues);
+    defer for (queues) |queue| {
+        queue.deinit();
+    };
+
     // 20 is the lowest common multiple of the width of the playfield (10) and the
     // number of cells in a piece (4). 20 / 4 = 5 extra pieces for each bigger
     // perfect clear
@@ -87,21 +97,10 @@ pub fn findPc(
             continue;
         }
 
-        // Pre-allocate a queue for each placement
-        const queues = try allocator.alloc(movegen.MoveQueue, pieces_needed);
-        for (0..queues.len) |i| {
-            queues[i] = movegen.MoveQueue.init(allocator, {});
-        }
-        defer allocator.free(queues);
-        defer for (queues) |queue| {
-            queue.deinit();
-        };
-
-        cache.clearRetainingCapacity();
         if (findPcInner(
             playfield,
             pieces,
-            queues,
+            queues[0..pieces_needed],
             placements[0..pieces_needed],
             game.kicks,
             &cache,
@@ -109,6 +108,12 @@ pub fn findPc(
             @intCast(max_height),
         )) {
             return placements[0..pieces_needed];
+        }
+
+        // Clear cache and queues
+        cache.clearRetainingCapacity();
+        for (queues) |*queue| {
+            queue.items.len = 0;
         }
     }
 

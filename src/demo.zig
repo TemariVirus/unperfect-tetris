@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 const SolutionList = std.ArrayList([]Placement);
 const time = std.time;
 
@@ -186,7 +187,7 @@ fn pcThread(allocator: Allocator, nn: NN, state: GameState, queue: *SolutionList
             game.nextPiece();
         }
 
-        _ = allocator.resize(placements, solution.len);
+        assert(allocator.resize(placements, solution.len));
         try queue.append(solution);
     }
 }
