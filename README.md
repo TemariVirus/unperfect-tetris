@@ -9,6 +9,8 @@ outputs solutions in fumen format.
 pc COMMAND [options] [INPUT]
 ```
 
+Run `pc COMMAND --help` for command-specific help.
+
 ## Commands
 
 ### Demo
@@ -36,7 +38,7 @@ pc display [options] PATH
 
 Displays the perfect clear solutions saved at `PATH`. Press `enter` to display
 the next solution. To seek to a specific solution, type the solution number and
-press `enter`.
+press `enter`. Only supports `.pc` files.
 
 #### Options
 

@@ -33,7 +33,7 @@ pub const DisplayArgs = struct {
         .full_text =
         \\Displays the perfect clear solutions saved at PATH. Press `enter` to
         \\display the next solution. To seek to a specific solution, type the
-        \\solution number and press `enter`.
+        \\solution number and press `enter`. Only supports `.pc` files.
         ,
         .option_docs = .{
             .help = "Print this help message.",

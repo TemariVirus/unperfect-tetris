@@ -27,7 +27,8 @@ const Args = struct {
     pub const meta = .{
         .usage_summary = "COMMAND [options] [INPUT]",
         .full_text =
-        \\Blazingly fast Tetris perfect clear solver.
+        \\Blazingly fast Tetris perfect clear solver. Run `pc COMMAND --help` for
+        \\command-specific help.
         \\
         \\Commands:
         \\  demo         Demostrates the solver's speed with a tetris playing bot.
