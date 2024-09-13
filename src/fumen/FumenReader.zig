@@ -276,7 +276,7 @@ pub fn parse(allocator: Allocator, fumen: []const u8) AllocOrFumenError!ParsedFu
     var reader = try FumenReader.init(allocator, fumen);
     errdefer reader.deinit();
 
-    while (reader.pos < reader.data.len) {
+    while (!reader.done()) {
         try reader.readPage();
     }
     if (reader.field_repeat != 0) {
@@ -370,6 +370,13 @@ fn init(allocator: Allocator, fumen: []const u8) FumenError!FumenReader {
 
 fn deinit(self: FumenReader) void {
     self.next.deinit();
+}
+
+fn done(self: *FumenReader) bool {
+    const old_pos = self.pos;
+    _ = self.pollOne() catch |e| if (e == FumenError.EndOfData) return true;
+    self.pos = old_pos;
+    return false;
 }
 
 fn pollOne(self: *FumenReader) FumenError!u6 {
