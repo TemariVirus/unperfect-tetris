@@ -74,7 +74,8 @@ pub const FumenArgs = struct {
         .usage_summary = "fumen [options] INPUTS...",
         .full_text =
         \\Produces a perfect clear solution for each input fumen. Outputs each
-        \\solution to stdout as a new fumen, separated by newlines. Fumen editor:
+        \\solution to stdout as a new fumen, separated by newlines. If the fumen
+        \\is inside a url, the url will be preserved in the output. Fumen editor:
         \\https://fumen.zui.jp/#english.js
         ,
         .option_docs = .{

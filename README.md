@@ -49,7 +49,8 @@ pc fumen [options] INPUTS...
 ```
 
 Produces a perfect clear solution for each input fumen. Outputs each solution
-to stdout as a new fumen, separated by newlines. Fumen editor:
+to stdout as a new fumen, separated by newlines. If the fumen is inside a url,
+the url will be preserved in the output. Fumen editor:
 [https://fumen.zui.jp/#english.js](https://fumen.zui.jp/#english.js)
 
 #### Options

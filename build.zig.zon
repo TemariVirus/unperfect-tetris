@@ -1,6 +1,6 @@
 .{
     .name = "perfect-tetris",
-    .version = "0.0.1",
+    .version = "1.0.0",
     .dependencies = .{
         .engine = .{
             .url = "https://github.com/TemariVirus/Budget-Tetris-Engine/archive/4db18e454d9e5b1c2afb1b01ebea5e2e8df46d14.tar.gz",
