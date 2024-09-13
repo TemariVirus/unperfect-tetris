@@ -84,6 +84,8 @@ fn buildExe(
         exe.root_module.strip = true;
     }
 
+    b.installArtifact(exe);
+
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| {
@@ -91,9 +93,6 @@ fn buildExe(
     }
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
-
-    const install = b.addInstallArtifact(exe, .{});
-    run_step.dependOn(&install.step);
 }
 
 fn buildSolve(
