@@ -8,65 +8,114 @@ const SevenBag = engine.bags.SevenBag;
 const root = @import("perfect-tetris");
 const NN = root.NN;
 const pc = root.pc;
+const pc_slow = root.pc_slow;
 
 pub fn main() !void {
-    try pcBenchmark(4);
+    // Mean: 30.893ms ± 66.953ms
+    // Max: 470.271ms
+    try pcBenchmark(4, "NNs/Fast2.json", false);
+
+    // Mean: 56.789ms ± 105.33ms
+    // Max: 653.043ms
+    try pcBenchmark(4, "NNs/Fast2.json", true);
+
+    // Mean: 15.158ms ± 29.648ms
+    // Max: 235.282ms
+    try pcBenchmark(6, "NNs/6-line-baseline.json", false);
+
+    // Mean: 44ns
     getFeaturesBenchmark();
 }
 
-// Mean: 28.869ms
-// Max: 442.807ms
-pub fn pcBenchmark(comptime height: u8) !void {
-    const RUN_COUNT = 100;
+fn mean(T: type, values: []T) T {
+    var sum: T = 0;
+    for (values) |v| {
+        sum += v;
+    }
+    return sum / std.math.lossyCast(T, values.len);
+}
+
+fn max(T: type, values: []T) T {
+    var maximum: T = values[0];
+    for (values) |v| {
+        maximum = @max(v, maximum);
+    }
+    return maximum;
+}
+
+fn standardDeviation(T: type, values: []T) !f64 {
+    const m = mean(T, values);
+    var sum: f64 = 0;
+    for (values) |v| {
+        const diff: f64 = @floatCast(v - m);
+        sum += diff * diff;
+    }
+    return @sqrt(sum / @as(f64, @floatFromInt(values.len)));
+}
+
+pub fn pcBenchmark(comptime height: u8, nn_path: []const u8, slow: bool) !void {
+    const RUN_COUNT = 200;
 
     std.debug.print(
         \\
-        \\------------------
-        \\   PC Benchmark
-        \\------------------
+        \\------------------------
+        \\      PC Benchmark
+        \\------------------------
+        \\Height: {}
+        \\NN:     {s}
+        \\Slow:   {}
+        \\------------------------
         \\
-    , .{});
+    , .{ height, std.fs.path.stem(nn_path), slow });
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const nn = try NN.load(allocator, "NNs/Fast2.json");
+    const nn = try NN.load(allocator, nn_path);
     defer nn.deinit(allocator);
 
     const placements = try allocator.alloc(root.Placement, height * 10 / 4);
     defer allocator.free(placements);
 
-    const start = time.nanoTimestamp();
-    var max_time: u64 = 0;
-    for (0..RUN_COUNT) |seed| {
-        const gamestate = GameState.init(SevenBag.init(seed), engine.kicks.srsPlus);
+    var times: [RUN_COUNT]u64 = undefined;
+    for (0..RUN_COUNT) |i| {
+        const gamestate = GameState.init(SevenBag.init(i), engine.kicks.srsPlus);
 
         const solve_start = time.nanoTimestamp();
-        const solution = try pc.findPc(
-            SevenBag,
-            allocator,
-            gamestate,
-            nn,
-            height,
-            placements,
-        );
-        const time_taken: u64 = @intCast(time.nanoTimestamp() - solve_start);
-        max_time = @max(max_time, time_taken);
+        const solution = if (slow)
+            try pc_slow.findPc(
+                SevenBag,
+                allocator,
+                gamestate,
+                nn,
+                height,
+                placements,
+            )
+        else
+            try pc.findPc(
+                SevenBag,
+                allocator,
+                gamestate,
+                nn,
+                height,
+                placements,
+            );
+        times[i] = @intCast(time.nanoTimestamp() - solve_start);
         std.mem.doNotOptimizeAway(solution);
-
-        std.debug.print(
-            "Seed: {:<2} | Time taken: {}\n",
-            .{ seed, std.fmt.fmtDuration(time_taken) },
-        );
     }
-    const total_time: u64 = @intCast(time.nanoTimestamp() - start);
 
-    std.debug.print("Mean: {}\n", .{std.fmt.fmtDuration(total_time / RUN_COUNT)});
+    const avg_time: u64 = mean(u64, &times);
+    const max_time: u64 = max(u64, &times);
+    var times_f: [RUN_COUNT]f64 = undefined;
+    for (0..RUN_COUNT) |i| {
+        times_f[i] = @floatFromInt(times[i]);
+    }
+    const time_std: u64 = @intFromFloat(try standardDeviation(f64, &times_f));
+    std.debug.print("Mean: {} ± {}\n", .{ std.fmt.fmtDuration(avg_time), std.fmt.fmtDuration(time_std) });
     std.debug.print("Max: {}\n", .{std.fmt.fmtDuration(max_time)});
 }
 
-// Mean: 41ns
 pub fn getFeaturesBenchmark() void {
     const RUN_COUNT = 100_000_000;
 
