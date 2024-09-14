@@ -248,20 +248,6 @@ fn findPcInner(
     return false;
 }
 
-/// Returns the maxium amount the checkerboard parity can be changed with the
-/// given pieces.
-fn maxCheckerboardParity(pieces: []const PieceKind) u5 {
-    var max_parity: u5 = 0;
-    for (pieces) |p| {
-        switch (p) {
-            // T has 2 more cells on even/odd cells
-            .t => max_parity +|= 2,
-            .i, .o, .s, .z, .l, .j => {},
-        }
-    }
-    return max_parity;
-}
-
 /// Returns the maxium amount the column parity can be changed with the given
 /// pieces.
 fn maxColumnParity(pieces: []const PieceKind) u5 {
@@ -317,9 +303,8 @@ fn checkSegments(playfield: BoardMask, max_height: u3) bool {
 }
 
 fn isPcPossible(playfield: BoardMask, max_height: u3, pieces: []const PieceKind) bool {
-    // A perfect clear requires the checkerboard parity and column parity to be 0
-    return maxCheckerboardParity(pieces) >= playfield.checkerboardParity() and
-        maxColumnParity(pieces) >= playfield.columnParity() and
+    // A perfect clear requires the column parity to be 0
+    return maxColumnParity(pieces) >= playfield.columnParity() and
         checkSegments(playfield, max_height);
 }
 

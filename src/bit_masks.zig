@@ -90,27 +90,6 @@ pub const BoardMask = struct {
         return cleared;
     }
 
-    /// Returns the checkerboard parity of playfield.
-    /// https://harddrop.com/wiki/Parity#Perfect_Clears
-    pub fn checkerboardParity(self: BoardMask) u5 {
-        const mask1 = comptime blk: {
-            var mask: u64 = 0;
-            for (0..HEIGHT) |i| {
-                const row_mask = if (i % 2 == 0)
-                    0b1010101010
-                else
-                    0b0101010101;
-                mask |= row_mask << (i * 10);
-            }
-            break :blk mask;
-        };
-        const mask2 = comptime (~mask1 << 4 >> 4); // Ignore partial 7th row
-
-        const count1 = @popCount(self.mask & mask1);
-        const count2 = @popCount(self.mask & mask2);
-        return @intCast(@max(count1, count2) - @min(count1, count2));
-    }
-
     /// Returns the column parity of playfield.
     pub fn columnParity(self: BoardMask) u5 {
         const mask1 = comptime blk: {
