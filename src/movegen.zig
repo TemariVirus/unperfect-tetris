@@ -335,10 +335,11 @@ pub const MoveQueue = std.PriorityQueue(MoveNode, void, compareFn);
 pub fn orderMoves(
     queue: *MoveQueue,
     playfield: BoardMask,
+    pieces: []const PieceKind,
     piece: PieceKind,
     moves: PiecePosSet,
     max_height: u3,
-    comptime validFn: fn (BoardMask, u3) bool,
+    comptime validFn: fn (BoardMask, u3, []const PieceKind) bool,
     nn: NN,
     comptime scoreFn: fn (BoardMask, u3, NN) f32,
 ) void {
@@ -348,7 +349,7 @@ pub fn orderMoves(
         board.place(PieceMask.from(placement.piece), placement.pos);
         const cleared = board.clearLines(placement.pos.y);
         const new_height = max_height - cleared;
-        if (!validFn(board, new_height)) {
+        if (!validFn(board, new_height, pieces)) {
             continue;
         }
 

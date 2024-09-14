@@ -99,7 +99,7 @@ pub fn findPc(
 
         if (findPcInner(
             playfield,
-            pieces,
+            pieces[0 .. pieces_needed + 1],
             queues[0..pieces_needed],
             placements[0..pieces_needed],
             game.kicks,
@@ -187,6 +187,7 @@ fn findPcInner(
     movegen.orderMoves(
         &queues[0],
         playfield,
+        pieces,
         pieces[0],
         m1,
         max_height,
@@ -200,6 +201,7 @@ fn findPcInner(
         movegen.orderMoves(
             &queues[0],
             playfield,
+            pieces,
             pieces[1],
             m2,
             max_height,
@@ -246,10 +248,38 @@ fn findPcInner(
     return false;
 }
 
-/// A fast check to see if a perfect clear is possible by making sure every empty
-/// "segment" of the playfield has a multiple of 4 cells. Assumes the total number
-/// of empty cells is a multiple of 4.
-fn isPcPossible(playfield: BoardMask, max_height: u3) bool {
+/// Returns the maxium amount the checkerboard parity can be changed with the
+/// given pieces.
+fn maxCheckerboardParity(pieces: []const PieceKind) u5 {
+    var max_parity: u5 = 0;
+    for (pieces) |p| {
+        switch (p) {
+            // T has 2 more cells on even/odd cells
+            .t => max_parity +|= 2,
+            .i, .o, .s, .z, .l, .j => {},
+        }
+    }
+    return max_parity;
+}
+
+/// Returns the maxium amount the column parity can be changed with the given
+/// pieces.
+fn maxColumnParity(pieces: []const PieceKind) u5 {
+    var max_parity: u5 = 0;
+    for (pieces) |p| {
+        switch (p) {
+            // L, J, and vertical T have 2 more cells on even/odd columns
+            .t, .l, .j => max_parity +|= 2,
+            .i, .o, .s, .z => {},
+        }
+    }
+    return max_parity;
+}
+
+/// Checks if a perfect clear is possible by making sure every empty "segment"
+/// of the playfield has a multiple of 4 cells. Assumes the total number of
+/// empty cells is a multiple of 4.
+fn checkSegments(playfield: BoardMask, max_height: u3) bool {
     assert(playfield.mask >> (@as(u6, max_height) * BoardMask.WIDTH) == 0);
     assert((@as(u6, max_height) * BoardMask.WIDTH - @popCount(playfield.mask)) % 4 == 0);
 
@@ -286,6 +316,13 @@ fn isPcPossible(playfield: BoardMask, max_height: u3) bool {
     return true;
 }
 
+fn isPcPossible(playfield: BoardMask, max_height: u3, pieces: []const PieceKind) bool {
+    // A perfect clear requires the checkerboard parity and column parity to be 0
+    return maxCheckerboardParity(pieces) >= playfield.checkerboardParity() and
+        maxColumnParity(pieces) >= playfield.columnParity() and
+        checkSegments(playfield, max_height);
+}
+
 fn orderScore(playfield: BoardMask, max_height: u3, nn: NN) f32 {
     const features = root.getFeatures(playfield, max_height, nn.inputs_used);
     return nn.predict(features);
@@ -316,54 +353,54 @@ test "4-line PC" {
     try expect(gamestate.lockCurrent(-1).pc);
 }
 
-test isPcPossible {
+test checkSegments {
     var playfield = BoardMask{};
     playfield.mask |= @as(u64, 0b0111111110) << 30;
     playfield.mask |= @as(u64, 0b0010000000) << 20;
     playfield.mask |= @as(u64, 0b0000001000) << 10;
     playfield.mask |= @as(u64, 0b0000001001);
-    try expect(isPcPossible(playfield, 4));
+    try expect(checkSegments(playfield, 4));
 
     playfield = BoardMask{};
     playfield.mask |= @as(u64, 0b0000000000) << 30;
     playfield.mask |= @as(u64, 0b0010011000) << 20;
     playfield.mask |= @as(u64, 0b0000011000) << 10;
     playfield.mask |= @as(u64, 0b0000011001);
-    try expect(isPcPossible(playfield, 4));
+    try expect(checkSegments(playfield, 4));
 
     playfield = BoardMask{};
     playfield.mask |= @as(u64, 0b0010011100) << 20;
     playfield.mask |= @as(u64, 0b0000011000) << 10;
     playfield.mask |= @as(u64, 0b0000011011);
-    try expect(!isPcPossible(playfield, 3));
+    try expect(!checkSegments(playfield, 3));
 
     playfield = BoardMask{};
     playfield.mask |= @as(u64, 0b0010010000) << 20;
     playfield.mask |= @as(u64, 0b0000001000) << 10;
     playfield.mask |= @as(u64, 0b0000001011);
-    try expect(isPcPossible(playfield, 3));
+    try expect(checkSegments(playfield, 3));
 
     playfield = BoardMask{};
     playfield.mask |= @as(u64, 0b0100011100) << 20;
     playfield.mask |= @as(u64, 0b0010001000) << 10;
     playfield.mask |= @as(u64, 0b0111111011);
-    try expect(!isPcPossible(playfield, 3));
+    try expect(!checkSegments(playfield, 3));
 
     playfield = BoardMask{};
     playfield.mask |= @as(u64, 0b0100010000) << 20;
     playfield.mask |= @as(u64, 0b0010011000) << 10;
     playfield.mask |= @as(u64, 0b0100011011);
-    try expect(isPcPossible(playfield, 3));
+    try expect(checkSegments(playfield, 3));
 
     playfield = BoardMask{};
     playfield.mask |= @as(u64, 0b0100111000) << 20;
     playfield.mask |= @as(u64, 0b0011011100) << 10;
     playfield.mask |= @as(u64, 0b1100111000);
-    try expect(!isPcPossible(playfield, 3));
+    try expect(!checkSegments(playfield, 3));
 
     playfield = BoardMask{};
     playfield.mask |= @as(u64, 0b0100111000) << 20;
     playfield.mask |= @as(u64, 0b0011111100) << 10;
     playfield.mask |= @as(u64, 0b0100111000);
-    try expect(isPcPossible(playfield, 3));
+    try expect(checkSegments(playfield, 3));
 }
