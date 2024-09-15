@@ -11,19 +11,19 @@ const pc = root.pc;
 const pc_slow = root.pc_slow;
 
 pub fn main() !void {
-    // Mean: 26.809ms ± 58.444ms
-    // Max: 447.606ms
-    try pcBenchmark(4, "NNs/Fast2.json", false);
+    // Mean: 25.327ms ± 68.314ms
+    // Max: 584.627ms
+    try pcBenchmark(4, "NNs/Fast3.json", false);
 
-    // Mean: 60.762ms ± 114.328ms
-    // Max: 708.329ms
-    try pcBenchmark(4, "NNs/Fast2.json", true);
+    // Mean: 42.45ms ± 104.585ms
+    // Max: 812.545ms
+    try pcBenchmark(4, "NNs/Fast3.json", true);
 
-    // Mean: 14.649ms ± 27.557ms
-    // Max: 224.255ms
+    // Mean: 15.412ms ± 29.967ms
+    // Max: 246.935ms
     try pcBenchmark(6, "NNs/6-line-baseline.json", false);
 
-    // Mean: 44ns
+    // Mean: 45ns
     getFeaturesBenchmark();
 }
 

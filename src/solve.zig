@@ -406,7 +406,7 @@ fn solveThread(buf: *SolutionBuffer) !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const nn = try NN.load(allocator, "NNs/Fast2.json");
+    const nn = try NN.load(allocator, "NNs/Fast3.json");
     defer nn.deinit(allocator);
 
     while (try buf.nextChunk()) |tuple| {

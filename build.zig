@@ -77,7 +77,7 @@ fn buildExe(
     exe.root_module.addImport("zmai", root_module.import_table.get("zmai").?);
 
     exe.root_module.addAnonymousImport("nn_json", .{
-        .root_source_file = b.path("NNs/Fast2-mini.json"),
+        .root_source_file = b.path("NNs/Fast3-mini.json"),
     });
 
     if (optimize == .ReleaseFast) {

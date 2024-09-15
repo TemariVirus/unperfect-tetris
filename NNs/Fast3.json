@@ -1,6 +1,6 @@
 {
     "options": {
-        "input_count": 7,
+        "input_count": 9,
         "output_count": 1,
         "hidden_activation": "swish",
         "output_activation": "identity"
@@ -9,38 +9,38 @@
         "genes": [
             {
                 "input": 0,
-                "output": 8,
-                "weight": 1.945143699645996,
-                "enabled": true
-            },
-            {
-                "input": 1,
-                "output": 8,
-                "weight": -9.116969704627991e-1,
+                "output": 10,
+                "weight": 9.031453728675842e-1,
                 "enabled": true
             },
             {
                 "input": 3,
-                "output": 8,
-                "weight": -2.6019461154937744,
+                "output": 10,
+                "weight": -1.84650719165802,
+                "enabled": true
+            },
+            {
+                "input": 4,
+                "output": 10,
+                "weight": -7.464601993560791e-1,
                 "enabled": true
             },
             {
                 "input": 6,
-                "output": 8,
-                "weight": 1.1811238527297974e-1,
+                "output": 10,
+                "weight": 1.1719337701797485,
                 "enabled": true
             },
             {
-                "input": 5,
-                "output": 9,
-                "weight": -3.682915270328522e-1,
+                "input": 7,
+                "output": 10,
+                "weight": -7.672251462936401e-1,
                 "enabled": true
             },
             {
-                "input": 9,
-                "output": 8,
-                "weight": -9.064493328332901e-2,
+                "input": 8,
+                "output": 10,
+                "weight": -5.730836987495422e-1,
                 "enabled": true
             }
         ]

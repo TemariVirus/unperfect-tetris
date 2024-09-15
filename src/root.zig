@@ -24,7 +24,7 @@ pub const Placement = struct {
 };
 
 pub const NN = struct {
-    pub const INPUT_COUNT = 7;
+    pub const INPUT_COUNT = 9;
 
     net: NNInner,
     inputs_used: [INPUT_COUNT]bool,
@@ -164,6 +164,8 @@ pub fn getFeatures(
         @floatFromInt(max_height),
         // Empty cells
         @floatFromInt(@as(u6, max_height) * 10 - @popCount(playfield.mask)),
+        @floatFromInt(playfield.checkerboardParity()),
+        @floatFromInt(playfield.columnParity()),
     };
 }
 
@@ -184,6 +186,7 @@ test getFeatures {
         6,
         [_]bool{true} ** NN.INPUT_COUNT,
     );
+    try expect(features.len == NN.INPUT_COUNT);
     try expect(features[0] == 11.7046995);
     try expect(features[1] == 10);
     try expect(features[2] == 47);
@@ -191,4 +194,6 @@ test getFeatures {
     try expect(features[4] == 22);
     try expect(features[5] == 6);
     try expect(features[6] == 40);
+    try expect(features[7] == 4);
+    try expect(features[8] == 2);
 }

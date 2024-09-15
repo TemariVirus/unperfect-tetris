@@ -383,12 +383,46 @@ pub fn getFeatures(
         break :blk @floatFromInt(col_trans);
     } else undefined;
 
+    // Empty cells
     const empty_cells: f32 = if (inputs_used[6]) blk: {
         var pop_count: u32 = 0;
         for (0..highest) |y| {
             pop_count += @popCount(rows[y] & ~BoardMask.EMPTY_ROW);
         }
         break :blk @floatFromInt(rows.len * 10 - pop_count);
+    } else undefined;
+
+    // Checkerboard parity
+    const checkerboard_parity: f32 = if (inputs_used[7]) blk: {
+        const mask1 = 0b1010101010 << 1;
+        const mask2 = 0b0101010101 << 1;
+
+        var count1: u32 = 0;
+        var count2: u32 = 0;
+        for (0..highest) |y| {
+            if (y % 2 == 0) {
+                count1 += @popCount(rows[y] & mask1);
+                count2 += @popCount(rows[y] & mask2);
+            } else {
+                count1 += @popCount(rows[y] & mask2);
+                count2 += @popCount(rows[y] & mask1);
+            }
+        }
+        break :blk @floatFromInt(@max(count1, count2) - @min(count1, count2));
+    } else undefined;
+
+    // Column parity
+    const column_parity: f32 = if (inputs_used[8]) blk: {
+        const mask1 = 0b1010101010 << 1;
+        const mask2 = 0b0101010101 << 1;
+
+        var count1: u32 = 0;
+        var count2: u32 = 0;
+        for (0..highest) |y| {
+            count1 += @popCount(rows[y] & mask1);
+            count2 += @popCount(rows[y] & mask2);
+        }
+        break :blk @floatFromInt(@max(count1, count2) - @min(count1, count2));
     } else undefined;
 
     return .{
@@ -400,6 +434,8 @@ pub fn getFeatures(
         // Max height
         @floatFromInt(rows.len),
         empty_cells,
+        checkerboard_parity,
+        column_parity,
     };
 }
 
@@ -408,7 +444,7 @@ test "4-line PC" {
 
     var gamestate = GameState(SevenBag).init(SevenBag.init(0), engine.kicks.srsPlus);
 
-    const nn = try NN.load(allocator, "NNs/Fast2.json");
+    const nn = try NN.load(allocator, "NNs/Fast3.json");
     defer nn.deinit(allocator);
 
     const placements = try allocator.alloc(Placement, 10);
@@ -492,6 +528,7 @@ test getFeatures {
         playfield.rows[0..6],
         [_]bool{true} ** NN.INPUT_COUNT,
     );
+    try expect(features.len == NN.INPUT_COUNT);
     try expect(features[0] == 11.7046995);
     try expect(features[1] == 10);
     try expect(features[2] == 47);
@@ -499,4 +536,6 @@ test getFeatures {
     try expect(features[4] == 22);
     try expect(features[5] == 6);
     try expect(features[6] == 40);
+    try expect(features[7] == 4);
+    try expect(features[8] == 2);
 }

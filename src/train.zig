@@ -372,13 +372,13 @@ fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
         };
         std.mem.doNotOptimizeAway(solution);
 
-        // Return fitness early if too low after 20 runs
-        if (i < 10) {
+        // Return fitness early if too low every 10 runs
+        if (i == 0 or i % 10 != 0) {
             continue;
         }
         const time_taken = @as(f64, @floatFromInt(timer.read())) / @as(f64, @floatFromInt(i));
         const fitness = time.ns_per_s / (time_taken + time.ns_per_ms);
-        if (fitness < 10) {
+        if (fitness < 15) {
             return fitness;
         }
     }
