@@ -1,6 +1,6 @@
 const std = @import("std");
-const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 
 const engine = @import("engine");
 const Bag = engine.bags.NoBag;
@@ -95,12 +95,22 @@ pub fn main(args: ValidateArgs, path: []const u8) !void {
         solution_count += 1;
     }
 
-    try std.io.getStdOut().writer().print("Validated {} solutions. All solutions ok.\n", .{solution_count});
+    try std.io.getStdOut().writer().print(
+        "Validated {} solutions. All solutions ok.\n",
+        .{solution_count},
+    );
 }
 
-fn printValidationError(file: std.fs.File, reader: anytype, solution_count: u64) !void {
+fn printValidationError(
+    file: std.fs.File,
+    reader: anytype,
+    solution_count: u64,
+) !void {
     const bytes = try file.getPos() -
         @as(u64, @intCast(reader.context.end)) +
         @as(u64, @intCast(reader.context.start));
-    try std.io.getStdOut().writer().print("Error at solution {} (byte {})\n", .{ solution_count, bytes });
+    try std.io.getStdOut().writer().print(
+        "Error at solution {} (byte {})\n",
+        .{ solution_count, bytes },
+    );
 }

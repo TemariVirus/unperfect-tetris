@@ -181,7 +181,11 @@ pub const ParsedFumen = struct {
         var playfield = BoardMask{};
         for (0..FIELD_HEIGHT - 1) |y| {
             for (0..FIELD_WIDTH) |x| {
-                playfield.set(x, FIELD_HEIGHT - 2 - y, reader.field[y * FIELD_WIDTH + x] != .empty);
+                playfield.set(
+                    x,
+                    FIELD_HEIGHT - 2 - y,
+                    reader.field[y * FIELD_WIDTH + x] != .empty,
+                );
             }
         }
 
@@ -297,7 +301,10 @@ pub fn outputFumen(
     // Initialise fumen
     const input = parsed.reader.data;
     const start = std.mem.lastIndexOf(u8, input, "115@") orelse unreachable;
-    const end = if (std.mem.indexOfScalar(u8, input[start..], '#')) |i| start + i else input.len;
+    const end = if (std.mem.indexOfScalar(u8, input[start..], '#')) |i|
+        start + i
+    else
+        input.len;
     if (args.append) {
         try writer.writeAll(input[0 .. start - 1]);
         try writer.writeByte(args.@"output-type".toChr());
@@ -320,11 +327,17 @@ pub fn outputFumen(
                 continue;
             }
 
-            try writer.writeAll(&unpoll(2, (@as(u32, @intFromEnum(block)) + 8) * FIELD_LEN + len));
+            try writer.writeAll(&unpoll(
+                2,
+                (@as(u32, @intFromEnum(block)) + 8) * FIELD_LEN + len,
+            ));
             block = parsed.reader.field[i];
             len = 0;
         }
-        try writer.writeAll(&unpoll(2, (@as(u32, @intFromEnum(block)) + 8) * FIELD_LEN + len));
+        try writer.writeAll(&unpoll(
+            2,
+            (@as(u32, @intFromEnum(block)) + 8) * FIELD_LEN + len,
+        ));
         // Write field repeat if field is empty
         if (block == .empty and len == FIELD_LEN - 1) {
             try writer.writeAll(&unpoll(1, 0));
@@ -359,7 +372,10 @@ fn init(allocator: Allocator, fumen: []const u8) FumenError!FumenReader {
     const start = mem.lastIndexOf(u8, fumen, "115@") orelse
         return FumenError.UnsupportedFumenVersion;
     // Fumen may be a url, remove addons (which come after a '#')
-    const end = if (mem.indexOfScalar(u8, fumen[start..], '#')) |i| start + i else fumen.len;
+    const end = if (mem.indexOfScalar(u8, fumen[start..], '#')) |i|
+        start + i
+    else
+        fumen.len;
     return .{
         .allocator = allocator,
         // + 4 to skip the "115@" prefix
@@ -380,7 +396,8 @@ fn done(self: *FumenReader) bool {
 }
 
 fn pollOne(self: *FumenReader) FumenError!u6 {
-    // Read until next valid character (fumens sometimes contain '?'s that should be ignored)
+    // Read until next valid character (fumens sometimes contain '?'s that
+    // should be ignored)
     while (self.pos < self.data.len) : (self.pos += 1) {
         if (b64_decode[self.data[self.pos]]) |v| {
             self.pos += 1;
@@ -815,7 +832,10 @@ fn readPage(self: *FumenReader) AllocOrFumenError!void {
                     .y = -@as(i8, @intCast(y)),
                 });
                 // Pieces cannot be placed in bottom row, but can extend out of the top
-                if (mino_pos.x < 0 or mino_pos.x >= FIELD_WIDTH or mino_pos.y >= FIELD_HEIGHT - 1) {
+                if (mino_pos.x < 0 or
+                    mino_pos.x >= FIELD_WIDTH or
+                    mino_pos.y >= FIELD_HEIGHT - 1)
+                {
                     return FumenError.InvalidPieceLocation;
                 }
                 const index: usize = if (@as(i32, mino_pos.y) * FIELD_WIDTH + mino_pos.x < 0)

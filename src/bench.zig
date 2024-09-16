@@ -112,7 +112,10 @@ pub fn pcBenchmark(comptime height: u8, nn_path: []const u8, slow: bool) !void {
         times_f[i] = @floatFromInt(times[i]);
     }
     const time_std: u64 = @intFromFloat(try standardDeviation(f64, &times_f));
-    std.debug.print("Mean: {} ± {}\n", .{ std.fmt.fmtDuration(avg_time), std.fmt.fmtDuration(time_std) });
+    std.debug.print("Mean: {} ± {}\n", .{
+        std.fmt.fmtDuration(avg_time),
+        std.fmt.fmtDuration(time_std),
+    });
     std.debug.print("Max: {}\n", .{std.fmt.fmtDuration(max_time)});
 }
 

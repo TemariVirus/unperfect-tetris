@@ -180,9 +180,12 @@ pub fn getNnOrDefault(allocator: Allocator, nn_path: ?[]const u8) !NN {
     }
 
     // Use embedded neural network as default
-    const obj = try json.parseFromSlice(NNInner.NNJson, allocator, @embedFile("nn_json"), .{
-        .ignore_unknown_fields = true,
-    });
+    const obj = try json.parseFromSlice(
+        NNInner.NNJson,
+        allocator,
+        @embedFile("nn_json"),
+        .{ .ignore_unknown_fields = true },
+    );
     defer obj.deinit();
 
     var inputs_used: [NN.INPUT_COUNT]bool = undefined;

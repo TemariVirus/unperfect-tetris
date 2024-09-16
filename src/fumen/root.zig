@@ -4,6 +4,7 @@ const assert = std.debug.assert;
 const File = std.fs.File;
 
 const engine = @import("engine");
+const BoardMask = engine.bit_masks.BoardMask;
 const kicks = engine.kicks;
 const GameState = engine.GameState(FumenReader.FixedBag);
 
@@ -157,9 +158,9 @@ fn findPc(allocator: Allocator, len: usize, gamestate: GameState, nn: NN) ![]Pla
     errdefer allocator.free(placements);
 
     const field_height = blk: {
-        var i: usize = engine.bit_masks.BoardMask.HEIGHT;
+        var i: usize = BoardMask.HEIGHT;
         while (i >= 1) : (i -= 1) {
-            if (gamestate.playfield.rows[i - 1] != engine.bit_masks.BoardMask.EMPTY_ROW) {
+            if (gamestate.playfield.rows[i - 1] != BoardMask.EMPTY_ROW) {
                 break;
             }
         }
@@ -168,11 +169,11 @@ fn findPc(allocator: Allocator, len: usize, gamestate: GameState, nn: NN) ![]Pla
     const bits_set = blk: {
         var set: usize = 0;
         for (0..field_height) |i| {
-            set += @popCount(gamestate.playfield.rows[i] & ~engine.bit_masks.BoardMask.EMPTY_ROW);
+            set += @popCount(gamestate.playfield.rows[i] & ~BoardMask.EMPTY_ROW);
         }
         break :blk set;
     };
-    const empty_cells = engine.bit_masks.BoardMask.WIDTH * field_height - bits_set;
+    const empty_cells = BoardMask.WIDTH * field_height - bits_set;
     // Assumes that all pieces have 4 cells and that the playfield is 10 cells wide.
     // Thus, an odd number of empty cells means that a perfect clear is impossible.
     if (empty_cells % 2 == 1) {
@@ -189,7 +190,7 @@ fn findPc(allocator: Allocator, len: usize, gamestate: GameState, nn: NN) ![]Pla
     if (pieces_needed == 0) {
         pieces_needed = 5;
     }
-    const start_height = (4 * pieces_needed + bits_set) / engine.bit_masks.BoardMask.WIDTH;
+    const start_height = (4 * pieces_needed + bits_set) / BoardMask.WIDTH;
 
     // Use fast pc if possible
     if (start_height <= 6) {

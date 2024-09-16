@@ -120,7 +120,8 @@ pub fn findPc(
     return FindPcError.SolutionTooLong;
 }
 
-/// Extracts `pieces_count` pieces from the game state, in the format [current, hold, next...].
+/// Extracts `pieces_count` pieces from the game state, in the format
+/// [current, hold, next...].
 pub fn getPieces(
     comptime BagType: type,
     allocator: Allocator,

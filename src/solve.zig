@@ -210,7 +210,9 @@ const SolutionBuffer = struct {
                 if (e != fs.File.OpenError.FileNotFound) {
                     return e;
                 }
-                try fs.cwd().makePath(fs.path.dirname(pc_path) orelse return error.InvalidPath);
+                try fs.cwd().makePath(
+                    fs.path.dirname(pc_path) orelse return error.InvalidPath,
+                );
                 break :blk try fs.cwd().createFile(pc_path, .{});
             };
         };
@@ -222,7 +224,9 @@ const SolutionBuffer = struct {
 
         var wrote = false;
         // A negative length indicates that the chunk is not done yet
-        while (!self.isEmpty() and self.lengths[mask(self.read_idx)].load(.monotonic) >= 0) {
+        while (!self.isEmpty() and
+            self.lengths[mask(self.read_idx)].load(.monotonic) >= 0)
+        {
             const len: usize = @intCast(self.lengths[mask(self.read_idx)].load(.monotonic));
             self.solved += len;
             // NOTE: for the last chunk, the count value may become larger than
@@ -265,11 +269,13 @@ const SolutionBuffer = struct {
             var hold = sequence[0];
             var current = sequence[1];
             for (sol, 0..) |placement, i| {
-                // Use canonical position so that the position is always in the range [0, 59]
+                // Use canonical position so that the position is always in the
+                // range [0, 59]
                 const canon_pos = placement.piece.canonicalPosition(placement.pos);
                 const pos = canon_pos.y * 10 + canon_pos.x;
                 assert(pos < 60);
-                placements[i] = @intFromEnum(placement.piece.facing) | (@as(u8, pos) << 2);
+                placements[i] = @intFromEnum(placement.piece.facing) |
+                    (@as(u8, pos) << 2);
 
                 if (current != placement.piece.kind) {
                     holds |= @as(u16, 1) << @intCast(i);
@@ -303,15 +309,27 @@ const SolutionBuffer = struct {
             {
                 const pc_path = try std.fmt.allocPrint(allocator, "{s}.pc", .{path});
                 defer allocator.free(pc_path);
-                const backup_path = try std.fmt.allocPrint(allocator, "{s}-backup.pc", .{path});
+                const backup_path = try std.fmt.allocPrint(
+                    allocator,
+                    "{s}-backup.pc",
+                    .{path},
+                );
                 defer allocator.free(backup_path);
 
                 try fs.cwd().copyFile(pc_path, fs.cwd(), backup_path, .{});
             }
             {
-                const count_path = try std.fmt.allocPrint(allocator, "{s}.count", .{path});
+                const count_path = try std.fmt.allocPrint(
+                    allocator,
+                    "{s}.count",
+                    .{path},
+                );
                 defer allocator.free(count_path);
-                const backup_path = try std.fmt.allocPrint(allocator, "{s}-backup.count", .{path});
+                const backup_path = try std.fmt.allocPrint(
+                    allocator,
+                    "{s}-backup.count",
+                    .{path},
+                );
                 defer allocator.free(backup_path);
 
                 try fs.cwd().copyFile(count_path, fs.cwd(), backup_path, .{});

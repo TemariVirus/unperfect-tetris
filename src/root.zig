@@ -149,7 +149,8 @@ pub fn getFeatures(
     const col_trans: f32 = if (inputs_used[4]) blk: {
         var col_trans: u32 = @popCount(playfield.row(@max(1, highest) - 1));
         for (0..@max(1, highest) - 1) |y| {
-            col_trans += @popCount(playfield.row(@intCast(y)) ^ playfield.row(@intCast(y + 1)));
+            col_trans += @popCount(playfield.row(@intCast(y)) ^
+                playfield.row(@intCast(y + 1)));
         }
         break :blk @floatFromInt(col_trans);
     } else undefined;

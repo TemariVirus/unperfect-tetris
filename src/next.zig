@@ -219,7 +219,11 @@ pub fn NextIterator(comptime len: usize, comptime lock_len: usize) type {
             return sizes[0] == 0 or sizes[sizes.len - 1] == MAX_BAG_LEN;
         }
 
-        inline fn initBag(start: usize, size: BagLenInt, locks: [lock_len]u3) BagIterator {
+        inline fn initBag(
+            start: usize,
+            size: BagLenInt,
+            locks: [lock_len]u3,
+        ) BagIterator {
             return BagIterator.init(
                 size,
                 locks[@min(locks.len, start)..@min(locks.len, start + size)],
@@ -266,7 +270,8 @@ pub fn NextIterator(comptime len: usize, comptime lock_len: usize) type {
                 if (self.bags[i].next(self.pieces, start, self.sizes[i])) |p| {
                     self.pieces = p;
                 } else {
-                    // If bag was unable to satisfy the locks, advance to the next set of bags
+                    // If bag was unable to satisfy the locks, advance to the
+                    // next set of bags
                     nextSize(&self.sizes);
                     if (done(self.sizes)) {
                         return null;

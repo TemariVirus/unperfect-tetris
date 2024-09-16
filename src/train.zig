@@ -91,7 +91,13 @@ pub fn main() !void {
     outer: while (trainer.generation < GENERATIONS) {
         time.sleep(time.ns_per_ms);
         if (save_timer.trigger()) |_| {
-            try saveSafe(allocator, SAVE_DIR ++ "current.json", seed, trainer, fitnesses);
+            try saveSafe(
+                allocator,
+                SAVE_DIR ++ "current.json",
+                seed,
+                trainer,
+                fitnesses,
+            );
         }
 
         // Wait for all fitnesses to be calculated
@@ -101,7 +107,11 @@ pub fn main() !void {
             }
         }
 
-        const path = try std.fmt.allocPrint(allocator, "{s}{}.json", .{ SAVE_DIR, trainer.generation });
+        const path = try std.fmt.allocPrint(
+            allocator,
+            "{s}{}.json",
+            .{ SAVE_DIR, trainer.generation },
+        );
         defer allocator.free(path);
         try saveSafe(allocator, path, seed, trainer, fitnesses);
 
@@ -363,7 +373,14 @@ fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
         const gamestate = GameState.init(bag, engine.kicks.srs);
 
         // Optimize for 4 line PCs
-        const solution = pc.findPc(SevenBag, allocator, gamestate, nn, HEIGHT, placements) catch |e| {
+        const solution = pc.findPc(
+            SevenBag,
+            allocator,
+            gamestate,
+            nn,
+            HEIGHT,
+            placements,
+        ) catch |e| {
             if (e != pc.FindPcError.SolutionTooLong) {
                 return e;
             } else {
@@ -376,7 +393,8 @@ fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
         if (i == 0 or i % 10 != 0) {
             continue;
         }
-        const time_taken = @as(f64, @floatFromInt(timer.read())) / @as(f64, @floatFromInt(i));
+        const time_taken = @as(f64, @floatFromInt(timer.read())) /
+            @as(f64, @floatFromInt(i));
         const fitness = time.ns_per_s / (time_taken + time.ns_per_ms);
         if (fitness < 15) {
             return fitness;

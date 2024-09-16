@@ -105,7 +105,14 @@ pub fn main(allocator: Allocator, args: DisplayArgs, path: []const u8) !void {
             .width = 10 * 2 + 2,
             .height = 22,
         };
-        matrix_box.drawBox(0, 0, matrix_box.height, matrix_box.width, Colors.WHITE, null);
+        matrix_box.drawBox(
+            0,
+            0,
+            matrix_box.height,
+            matrix_box.width,
+            Colors.WHITE,
+            null,
+        );
 
         var row_occupancy = [_]u8{0} ** 20;
         const matrix_view = matrix_box.sub(
@@ -126,7 +133,10 @@ pub fn main(allocator: Allocator, args: DisplayArgs, path: []const u8) !void {
             const canon_pos = placement >> 2;
             const x = canon_pos % 10;
             const y = canon_pos / 10;
-            const pos = piece.fromCanonicalPosition(.{ .x = @intCast(x), .y = @intCast(y) });
+            const pos = piece.fromCanonicalPosition(.{
+                .x = @intCast(x),
+                .y = @intCast(y),
+            });
 
             drawMatrixPiece(matrix_view, &row_occupancy, piece, pos.x, pos.y);
         }
