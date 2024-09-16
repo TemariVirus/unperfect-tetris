@@ -12,11 +12,15 @@ const assert = std.debug.assert;
 const expect = std.testing.expect;
 
 const engine = @import("engine");
+const Facing = engine.pieces.Facing;
 const Piece = engine.pieces.Piece;
 const PieceKind = engine.pieces.PieceKind;
 const Position = engine.pieces.Position;
 
 const NNInner = @import("zmai").genetic.neat.NN;
+
+/// The maximum length of a next sequence in a `.pc` file.
+pub const PC_MAX_SEQ_LEN = 16;
 
 pub const Placement = struct {
     piece: Piece,
@@ -46,6 +50,62 @@ pub const NN = struct {
         var output: [1]f32 = undefined;
         self.net.predict(&input, &output);
         return output[0];
+    }
+};
+
+pub const PCSolution = struct {
+    pub const NextArray = std.BoundedArray(PieceKind, PC_MAX_SEQ_LEN);
+    pub const PlacementArray = std.BoundedArray(Placement, PC_MAX_SEQ_LEN - 1);
+
+    next: NextArray = NextArray{},
+    placements: PlacementArray = PlacementArray{},
+
+    /// Reads the next perfect clear solution from the reader, assuming the
+    /// reader is reading a `.pc` file. If the reader is at the end of the
+    /// file, this function returns `null`.
+    pub fn readOne(reader: anytype) !?PCSolution {
+        const seq = reader.readInt(u48, .little) catch |e| {
+            if (e == error.EndOfStream) {
+                return null;
+            }
+            return e;
+        };
+        const holds = try reader.readInt(u16, .little);
+
+        var solution = PCSolution{};
+        while (solution.next.len < PC_MAX_SEQ_LEN) {
+            const shift = 3 * @as(usize, solution.next.len);
+            const p: u3 = @truncate(seq >> @intCast(shift));
+            // 0b111 is the sentinel value for the end of the sequence
+            if (p == 0b111) {
+                break;
+            }
+            solution.next.appendAssumeCapacity(@enumFromInt(p));
+        }
+
+        var hold: PieceKind = solution.next.buffer[0];
+        for (1..solution.next.len) |i| {
+            // Check if the piece is held
+            var current = solution.next.buffer[i];
+            if ((holds >> @intCast(i - 1)) & 1 == 1) {
+                const temp = hold;
+                hold = current;
+                current = temp;
+            }
+
+            const placement = try reader.readByte();
+            const facing: Facing = @enumFromInt(@as(u2, @truncate(placement)));
+            const piece = Piece{ .facing = facing, .kind = current };
+            const canon_pos = placement >> 2;
+            const pos = piece.fromCanonicalPosition(.{
+                .x = @intCast(canon_pos % 10),
+                .y = @intCast(canon_pos / 10),
+            });
+
+            solution.placements.appendAssumeCapacity(.{ .piece = piece, .pos = pos });
+        }
+
+        return solution;
     }
 };
 
