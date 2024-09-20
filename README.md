@@ -251,7 +251,7 @@ empty playfield are as follows:
 | -------------- | ---------- | ---------- | --------------- | ------- | -------------------------- |
 | 2-line, opener | none       | 7-bag      | SRS             | 0%      | 0 in 5,040                 |
 | 2-line         | none       | 7-bag      | SRS             | 3.3217% | 5,148 in 154,980           |
-| 2-line         | any        | 7-bag      | SRS             | 4.1696% | 51,696 in 1,239,840        |
+| 2-line         | any        | 7-bag      | SRS             | 3.9987% | 15,132 in 378,420          |
 | 4-line, opener | none       | 7-bag      | SRS             | 100%    | 4,233,600 in 4,233,600     |
 | 4-line         | none       | 7-bag      | SRS             | 100%    | 57,576,960 in 57,576,960   |
-| 4-line         | any        | 7-bag      | SRS             | 99.975% | 460,501,934 in 460,615,680 |
+| 4-line         | any        | 7-bag      | SRS             | 99.964% | 196,791,063 in 196,862,400 |
