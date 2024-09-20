@@ -91,6 +91,7 @@ pub fn pcBenchmark(comptime height: u8, nn_path: []const u8, slow: bool) !void {
                 nn,
                 height,
                 placements,
+                null,
             )
         else
             try pc.findPc(
@@ -100,6 +101,7 @@ pub fn pcBenchmark(comptime height: u8, nn_path: []const u8, slow: bool) !void {
                 nn,
                 height,
                 placements,
+                null,
             );
         times[i] = @intCast(time.nanoTimestamp() - solve_start);
         std.mem.doNotOptimizeAway(solution);

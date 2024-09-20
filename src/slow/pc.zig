@@ -26,8 +26,13 @@ const FindPcError = root.pc.FindPcError;
 /// Finds a perfect clear with the least number of pieces possible for the given
 /// game state, and returns the sequence of placements required to achieve it.
 ///
-/// Returns an error if no perfect clear exists, or if the number of pieces needed
-/// exceeds `max_pieces`.
+/// `min_height` determines the minimum height of the perfect clear.
+///
+/// `save_hold` determines what piece must be in the hold slot at the end of
+/// the sequence. If `save_hold` is `null`, this constraint is ignored.
+///
+/// Returns an error if no perfect clear exists, or if the number of pieces
+/// needed exceeds `max_pieces`.
 pub fn findPc(
     comptime BagType: type,
     allocator: Allocator,
@@ -35,6 +40,7 @@ pub fn findPc(
     nn: NN,
     min_height: u6,
     placements: []Placement,
+    save_hold: ?PieceKind,
 ) ![]Placement {
     const field_height = blk: {
         var i: usize = BoardMask.HEIGHT;
@@ -72,8 +78,19 @@ pub fn findPc(
         pieces_needed = 5;
     }
 
-    const pieces = try getPieces(BagType, allocator, game, placements.len + 1);
+    const pieces = try root.pc.getPieces(BagType, allocator, game, placements.len + 1);
     defer allocator.free(pieces);
+
+    if (save_hold) |hold| {
+        // Requested hold piece is not in queue/hold
+        for (pieces) |p| {
+            if (p == hold) {
+                break;
+            }
+        } else {
+            return FindPcError.ImpossibleSaveHold;
+        }
+    }
 
     var cache = NodeSet.init(allocator);
     defer cache.deinit();
@@ -99,13 +116,14 @@ pub fn findPc(
 
         if (findPcInner(
             game.playfield,
-            pieces,
+            pieces[0 .. pieces_needed + 1],
             queues[0..pieces_needed],
             placements[0..pieces_needed],
             game.kicks,
             &cache,
             nn,
             @intCast(max_height),
+            save_hold,
         )) {
             return placements[0..pieces_needed];
         }
@@ -120,45 +138,6 @@ pub fn findPc(
     return FindPcError.SolutionTooLong;
 }
 
-/// Extracts `pieces_count` pieces from the game state, in the format
-/// [current, hold, next...].
-pub fn getPieces(
-    comptime BagType: type,
-    allocator: Allocator,
-    game: GameState(BagType),
-    pieces_count: usize,
-) ![]PieceKind {
-    if (pieces_count == 0) {
-        return &.{};
-    }
-
-    var pieces = try allocator.alloc(PieceKind, pieces_count);
-    pieces[0] = game.current.kind;
-    if (pieces_count == 1) {
-        return pieces;
-    }
-
-    const start: usize = if (game.hold_kind) |hold| blk: {
-        pieces[1] = hold;
-        break :blk 2;
-    } else 1;
-
-    for (game.next_pieces, start..) |piece, i| {
-        if (i >= pieces.len) {
-            break;
-        }
-        pieces[i] = piece;
-    }
-
-    // If next pieces are not enough, fill the rest from the bag
-    var bag_copy = game.bag;
-    for (@min(pieces.len, start + game.next_pieces.len)..pieces.len) |i| {
-        pieces[i] = bag_copy.next();
-    }
-
-    return pieces;
-}
-
 fn findPcInner(
     playfield: BoardMask,
     pieces: []PieceKind,
@@ -168,6 +147,7 @@ fn findPcInner(
     cache: *NodeSet,
     nn: NN,
     max_height: u6,
+    save_hold: ?PieceKind,
 ) bool {
     // Base case; check for perfect clear
     if (placements.len == 0) {
@@ -180,6 +160,20 @@ fn findPcInner(
     };
     if ((cache.getOrPut(node) catch unreachable).found_existing) {
         return false;
+    }
+
+    // Check if requested hold piece is in queue/hold
+    const can_hold = if (save_hold) |hold| blk: {
+        const idx = std.mem.lastIndexOfScalar(PieceKind, pieces, hold) orelse
+            return false;
+        break :blk idx >= 2 or (pieces.len > 1 and pieces[0] == pieces[1]);
+    } else true;
+
+    // Check for forced hold
+    var held_odd_times = false;
+    if (!can_hold and pieces[1] != save_hold.?) {
+        std.mem.swap(PieceKind, &pieces[0], &pieces[1]);
+        held_odd_times = !held_odd_times;
     }
 
     // Add moves to queue
@@ -196,7 +190,7 @@ fn findPcInner(
         orderScore,
     );
     // Check for unique hold
-    if (pieces.len > 1 and pieces[0] != pieces[1]) {
+    if (can_hold and pieces.len > 1 and pieces[0] != pieces[1]) {
         const m2 = movegen.allPlacements(playfield, kick_fn, pieces[1], max_height);
         movegen.orderMoves(
             &queues[0],
@@ -210,7 +204,6 @@ fn findPcInner(
         );
     }
 
-    var held_odd_times = false;
     while (queues[0].removeOrNull()) |move| {
         const placement = move.placement;
         // Hold if needed
@@ -234,16 +227,17 @@ fn findPcInner(
             cache,
             nn,
             new_height,
+            save_hold,
         )) {
             placements[0] = placement;
             return true;
         }
     }
+
     // Unhold if held an odd number of times so that pieces are in the same order
     if (held_odd_times) {
         std.mem.swap(PieceKind, &pieces[0], &pieces[1]);
     }
-
     return false;
 }
 
@@ -451,18 +445,29 @@ test "4-line PC" {
     const placements = try allocator.alloc(Placement, 10);
     defer allocator.free(placements);
 
-    const solution = try findPc(SevenBag, allocator, gamestate, nn, 0, placements);
+    const solution = try findPc(
+        SevenBag,
+        allocator,
+        gamestate,
+        nn,
+        0,
+        placements,
+        .s,
+    );
     try expect(solution.len == 10);
+    for (solution, 0..) |placement, i| {
+        if (gamestate.current.kind != placement.piece.kind) {
+            gamestate.hold();
+        }
+        try expect(gamestate.current.kind == placement.piece.kind);
+        gamestate.current.facing = placement.piece.facing;
 
-    for (solution[0 .. solution.len - 1]) |placement| {
-        gamestate.current = placement.piece;
         gamestate.pos = placement.pos;
-        try expect(!gamestate.lockCurrent(-1).pc);
+        try expect(gamestate.lockCurrent(-1).pc == (i + 1 == solution.len));
+        gamestate.nextPiece();
     }
 
-    gamestate.current = solution[solution.len - 1].piece;
-    gamestate.pos = solution[solution.len - 1].pos;
-    try expect(gamestate.lockCurrent(-1).pc);
+    try expect(gamestate.hold_kind == .s);
 }
 
 test isPcPossible {

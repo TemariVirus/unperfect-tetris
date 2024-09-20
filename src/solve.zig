@@ -439,6 +439,7 @@ fn solveThread(buf: *SolutionBuffer) !void {
                 nn,
                 HEIGHT,
                 &solutions[solved],
+                null,
             ) catch |e| if (e == pc.FindPcError.SolutionTooLong) {
                 continue;
             } else {

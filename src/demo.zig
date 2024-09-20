@@ -176,7 +176,15 @@ fn pcThread(allocator: Allocator, nn: NN, state: GameState, queue: *SolutionList
         // A 2- or 4-line PC is not always possible. 15 placements is enough
         // for a 6-line PC.
         const placements = try allocator.alloc(Placement, 15);
-        const solution = try pc.findPc(SevenBag, allocator, game, nn, 0, placements);
+        const solution = try pc.findPc(
+            SevenBag,
+            allocator,
+            game,
+            nn,
+            0,
+            placements,
+            null,
+        );
         for (solution) |placement| {
             if (game.current.kind != placement.piece.kind) {
                 game.hold();

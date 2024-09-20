@@ -7,6 +7,7 @@ const engine = @import("engine");
 const BoardMask = engine.bit_masks.BoardMask;
 const kicks = engine.kicks;
 const GameState = engine.GameState(FumenReader.FixedBag);
+const PieceKind = engine.pieces.PieceKind;
 
 const root = @import("perfect-tetris");
 const NN = root.NN;
@@ -58,6 +59,7 @@ pub const FumenArgs = struct {
     kicks: Kicks = .srs,
     nn: ?[]const u8 = null,
     @"output-type": OutputMode = .view,
+    save: ?PieceKind = null,
     verbose: bool = false,
 
     pub const wrap_len: u32 = 35;
@@ -67,6 +69,7 @@ pub const FumenArgs = struct {
         .h = "help",
         .k = "kicks",
         .n = "nn",
+        .s = "save",
         .t = "output-type",
         .v = "verbose",
     };
@@ -95,6 +98,12 @@ pub const FumenArgs = struct {
                     " (default: {s})",
                 .{@tagName((FumenArgs{}).@"output-type")},
             ),
+            .save = std.fmt.comptimePrint(
+                "The piece type to save in the hold slot by the end of the perfect clear. If null, any piece may go into the hold slot. " ++
+                    enumValuesHelp(FumenArgs, PieceKind) ++
+                    " (default: {any})",
+                .{(FumenArgs{}).save},
+            ),
             .verbose = "Print solve time and solution length to stderr.",
         },
     };
@@ -118,8 +127,12 @@ pub fn main(
         parsed.next.len,
         gamestate,
         nn,
+        args.save,
     ) catch |err| blk: {
-        if (err != pc.FindPcError.NoPcExists and err != pc.FindPcError.SolutionTooLong) {
+        if (err != pc.FindPcError.ImpossibleSaveHold and
+            err != pc.FindPcError.NoPcExists and
+            err != pc.FindPcError.SolutionTooLong)
+        {
             return err;
         }
         std.debug.print("Unable to solve: {}\n", .{err});
@@ -153,7 +166,13 @@ pub fn main(
     }
 }
 
-fn findPc(allocator: Allocator, len: usize, gamestate: GameState, nn: NN) ![]Placement {
+fn findPc(
+    allocator: Allocator,
+    len: usize,
+    gamestate: GameState,
+    nn: NN,
+    save_hold: ?PieceKind,
+) ![]Placement {
     const placements = try allocator.alloc(Placement, len);
     errdefer allocator.free(placements);
 
@@ -202,6 +221,7 @@ fn findPc(allocator: Allocator, len: usize, gamestate: GameState, nn: NN) ![]Pla
             nn,
             @intCast(start_height),
             placements[0..@min(placements.len, max_pieces)],
+            save_hold,
         )) |solution| {
             assert(allocator.resize(placements, solution.len));
             return solution;
@@ -215,6 +235,7 @@ fn findPc(allocator: Allocator, len: usize, gamestate: GameState, nn: NN) ![]Pla
         nn,
         @intCast(start_height),
         placements,
+        save_hold,
     );
     assert(allocator.resize(placements, solution.len));
     return solution;

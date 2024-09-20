@@ -380,6 +380,7 @@ fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
             nn,
             HEIGHT,
             placements,
+            null,
         ) catch |e| {
             if (e != pc.FindPcError.SolutionTooLong) {
                 return e;
