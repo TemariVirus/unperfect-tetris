@@ -58,8 +58,8 @@ pub const FumenArgs = struct {
     help: bool = false,
     kicks: Kicks = .srs,
     nn: ?[]const u8 = null,
-    @"output-type": OutputMode = .view,
     save: ?PieceKind = null,
+    @"output-type": OutputMode = .view,
     verbose: bool = false,
 
     pub const wrap_len: u32 = 35;
@@ -92,17 +92,13 @@ pub const FumenArgs = struct {
                 .{@tagName((FumenArgs{}).kicks)},
             ),
             .nn = "The path to the neural network to use for the bot. If not provided, a default built-in network will be used.",
+            .save = "The piece type to save in the hold slot by the end of the perfect clear. If not specified, any piece may go into the hold slot. " ++
+                enumValuesHelp(FumenArgs, PieceKind),
             .@"output-type" = std.fmt.comptimePrint(
                 "The type of fumen to output. If append is true, this option is ignored. " ++
                     enumValuesHelp(FumenArgs, OutputMode) ++
                     " (default: {s})",
                 .{@tagName((FumenArgs{}).@"output-type")},
-            ),
-            .save = std.fmt.comptimePrint(
-                "The piece type to save in the hold slot by the end of the perfect clear. If null, any piece may go into the hold slot. " ++
-                    enumValuesHelp(FumenArgs, PieceKind) ++
-                    " (default: {any})",
-                .{(FumenArgs{}).save},
             ),
             .verbose = "Print solve time and solution length to stderr.",
         },

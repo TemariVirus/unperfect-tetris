@@ -67,6 +67,10 @@ fumen from scratch.
 variant has 180 rotations but no 180 kicks. Supported Values:
 [none,none180,srs,srs180,srsPlus,srsTetrio] (default: srs)
 
+`-s`, `--save` The piece type to save in the hold slot by the end of the
+perfect clear. If not specified, any piece may go into the hold slot. Supported
+Values: [i,o,t,s,z,l,j]
+
 `-t`, `--output-type` The type of fumen to output. If append is true, this
 option is ignored. Supported Values: [`edit`, `list`, `view`] (default: `view`)
 
