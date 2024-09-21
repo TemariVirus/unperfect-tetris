@@ -4,9 +4,11 @@ const assert = std.debug.assert;
 const expect = std.testing.expect;
 
 const engine = @import("engine");
+const Facing = engine.pieces.Facing;
 const GameState = engine.GameState;
 const KickFn = engine.kicks.KickFn;
 const PieceKind = engine.pieces.PieceKind;
+const Rotation = engine.kicks.Rotation;
 const SevenBag = engine.bags.SevenBag;
 
 const root = @import("root.zig");
@@ -106,6 +108,8 @@ pub fn findPc(
         queue.deinit();
     };
 
+    const do_o_rotations = hasOKicks(game.kicks);
+
     // 20 is the lowest common multiple of the width of the playfield (10) and the
     // number of cells in a piece (4). 20 / 4 = 5 extra pieces for each bigger
     // perfect clear
@@ -120,6 +124,7 @@ pub fn findPc(
             pieces[0 .. pieces_needed + 1],
             queues[0..pieces_needed],
             placements[0..pieces_needed],
+            do_o_rotations,
             game.kicks,
             &cache,
             nn,
@@ -178,11 +183,29 @@ pub fn getPieces(
     return pieces;
 }
 
+/// Returns `true` if an O piece could be affected by kicks. Otherwise, `false`.
+pub fn hasOKicks(kicks: *const KickFn) bool {
+    // Check if 1st O kick could be something other than (0, 0)
+    for (std.enums.values(Facing)) |facing| {
+        for (std.enums.values(Rotation)) |rot| {
+            const k = kicks(
+                .{ .kind = .o, .facing = facing },
+                rot,
+            );
+            if (k.len > 0 and (k[0].x != 0 or k[0].y != 0)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 fn findPcInner(
     playfield: BoardMask,
     pieces: []PieceKind,
     queues: []movegen.MoveQueue,
     placements: []Placement,
+    do_o_rotation: bool,
     kick_fn: *const KickFn,
     cache: *NodeSet,
     nn: NN,
@@ -218,7 +241,13 @@ fn findPcInner(
 
     // Add moves to queue
     queues[0].items.len = 0;
-    const m1 = movegen.allPlacements(playfield, kick_fn, pieces[0], max_height);
+    const m1 = movegen.allPlacements(
+        playfield,
+        do_o_rotation,
+        kick_fn,
+        pieces[0],
+        max_height,
+    );
     movegen.orderMoves(
         &queues[0],
         playfield,
@@ -231,7 +260,13 @@ fn findPcInner(
     );
     // Check for unique hold
     if (can_hold and pieces.len > 1 and pieces[0] != pieces[1]) {
-        const m2 = movegen.allPlacements(playfield, kick_fn, pieces[1], max_height);
+        const m2 = movegen.allPlacements(
+            playfield,
+            do_o_rotation,
+            kick_fn,
+            pieces[1],
+            max_height,
+        );
         movegen.orderMoves(
             &queues[0],
             playfield,
@@ -263,6 +298,7 @@ fn findPcInner(
             pieces[1..],
             queues[1..],
             placements[1..],
+            do_o_rotation,
             kick_fn,
             cache,
             nn,

@@ -105,6 +105,8 @@ pub fn findPc(
         queue.deinit();
     };
 
+    const do_o_rotations = root.pc.hasOKicks(game.kicks);
+
     // 20 is the lowest common multiple of the width of the playfield (10) and the
     // number of cells in a piece (4). 20 / 4 = 5 extra pieces for each bigger
     // perfect clear
@@ -119,6 +121,7 @@ pub fn findPc(
             pieces[0 .. pieces_needed + 1],
             queues[0..pieces_needed],
             placements[0..pieces_needed],
+            do_o_rotations,
             game.kicks,
             &cache,
             nn,
@@ -143,6 +146,7 @@ fn findPcInner(
     pieces: []PieceKind,
     queues: []movegen.MoveQueue,
     placements: []Placement,
+    do_o_rotation: bool,
     kick_fn: *const KickFn,
     cache: *NodeSet,
     nn: NN,
@@ -178,7 +182,13 @@ fn findPcInner(
 
     // Add moves to queue
     queues[0].items.len = 0;
-    const m1 = movegen.allPlacements(playfield, kick_fn, pieces[0], max_height);
+    const m1 = movegen.allPlacements(
+        playfield,
+        do_o_rotation,
+        kick_fn,
+        pieces[0],
+        max_height,
+    );
     movegen.orderMoves(
         &queues[0],
         playfield,
@@ -191,7 +201,13 @@ fn findPcInner(
     );
     // Check for unique hold
     if (can_hold and pieces.len > 1 and pieces[0] != pieces[1]) {
-        const m2 = movegen.allPlacements(playfield, kick_fn, pieces[1], max_height);
+        const m2 = movegen.allPlacements(
+            playfield,
+            do_o_rotation,
+            kick_fn,
+            pieces[1],
+            max_height,
+        );
         movegen.orderMoves(
             &queues[0],
             playfield,
@@ -223,6 +239,7 @@ fn findPcInner(
             pieces[1..],
             queues[1..],
             placements[1..],
+            do_o_rotation,
             kick_fn,
             cache,
             nn,
@@ -271,8 +288,8 @@ fn isPcPossible(rows: []const u16) bool {
     return true;
 }
 
-fn orderScore(playfield: BoardMask, nn: NN) f32 {
-    const features = getFeatures(&playfield.rows, nn.inputs_used);
+fn orderScore(rows: []const u16, nn: NN) f32 {
+    const features = getFeatures(rows, nn.inputs_used);
     return nn.predict(features);
 }
 
@@ -371,7 +388,10 @@ pub fn getFeatures(
 
     // Column trasitions
     const col_trans: f32 = if (inputs_used[4]) blk: {
-        var col_trans: u32 = @popCount(rows[@max(1, highest) - 1] & ~BoardMask.EMPTY_ROW);
+        var col_trans: u32 = if (rows.len > 0)
+            @popCount(rows[@max(1, highest) - 1] & ~BoardMask.EMPTY_ROW)
+        else
+            0;
         for (0..@max(1, highest) - 1) |y| {
             col_trans += @popCount(rows[y] ^ rows[y + 1]);
         }
