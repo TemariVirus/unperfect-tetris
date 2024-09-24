@@ -17,7 +17,8 @@ const Placement = root.Placement;
 
 const SearchNode = struct {
     rows: [23]u16,
-    depth: u8,
+    height: u6,
+    save: PieceKind,
 };
 const NodeSet = std.AutoHashMap(SearchNode, void);
 
@@ -160,7 +161,8 @@ fn findPcInner(
 
     const node = SearchNode{
         .rows = playfield.rows[0..23].*,
-        .depth = @intCast(placements.len - 1),
+        .height = max_height,
+        .save = pieces[0],
     };
     if ((cache.getOrPut(node) catch unreachable).found_existing) {
         return false;
