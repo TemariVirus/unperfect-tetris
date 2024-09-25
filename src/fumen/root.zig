@@ -33,6 +33,38 @@ pub const Kicks = enum {
     }
 };
 
+pub const PieceKindArg = enum {
+    i,
+    o,
+    t,
+    s,
+    z,
+    l,
+    j,
+    I,
+    O,
+    T,
+    S,
+    Z,
+    L,
+    J,
+
+    pub fn toEngine(self: ?PieceKindArg) ?PieceKind {
+        if (self == null) {
+            return null;
+        }
+        return switch (self.?) {
+            .i, .I => .i,
+            .o, .O => .o,
+            .t, .T => .t,
+            .s, .S => .s,
+            .z, .Z => .z,
+            .l, .L => .l,
+            .j, .J => .j,
+        };
+    }
+};
+
 pub const OutputMode = enum {
     edit,
     list,
@@ -51,8 +83,9 @@ pub const FumenArgs = struct {
     append: bool = false,
     help: bool = false,
     kicks: Kicks = .srs,
+    @"min-height": u7 = 1,
     nn: ?[]const u8 = null,
-    save: ?PieceKind = null,
+    save: ?PieceKindArg = null,
     @"output-type": OutputMode = .view,
     verbose: bool = false,
 
@@ -62,6 +95,7 @@ pub const FumenArgs = struct {
         .a = "append",
         .h = "help",
         .k = "kicks",
+        .m = "min-height",
         .n = "nn",
         .s = "save",
         .t = "output-type",
@@ -71,10 +105,14 @@ pub const FumenArgs = struct {
     pub const meta = .{
         .usage_summary = "fumen [options] INPUTS...",
         .full_text =
-        \\Produces a perfect clear solution for each input fumen. Outputs each
-        \\solution to stdout as a new fumen, separated by newlines. If the fumen
-        \\is inside a url, the url will be preserved in the output. Fumen editor:
-        \\https://fumen.zui.jp/#english.js
+        \\Finds the shortest perfect clear solution of each input fumen.
+        \\The queue is encoded in the comment of the fumen, in the format:
+        \\
+        \\#Q=[<HOLD>](<CURRENT>)<NEXT1><NEXT2>...<NEXTn>
+        \\
+        \\Outputs each solution to stdout as a new fumen, separated by newlines.
+        \\If the fumen is inside a url, the url will be preserved in the output.
+        \\Fumen editor: https://fumen.zui.jp/#english.js
         ,
         .option_docs = .{
             .append = "Append solution frames to input fumen instead of making a new fumen from scratch.",
@@ -85,6 +123,7 @@ pub const FumenArgs = struct {
                     " (default: {s})",
                 .{@tagName((FumenArgs{}).kicks)},
             ),
+            .@"min-height" = "Overrides the minimum height of the PC to find.",
             .nn = "The path to the neural network to use for the bot. If not provided, a default built-in network will be used.",
             .save = "The piece type to save in the hold slot by the end of the perfect clear. If not specified, any piece may go into the hold slot. " ++
                 enumValuesHelp(FumenArgs, PieceKind),
@@ -117,9 +156,9 @@ pub fn main(
         allocator,
         gamestate,
         nn,
-        0,
+        args.@"min-height",
         parsed.next.len,
-        args.save,
+        PieceKindArg.toEngine(args.save),
     ) catch |err| blk: {
         if (err != FindPcError.ImpossibleSaveHold and
             err != FindPcError.NoPcExists and

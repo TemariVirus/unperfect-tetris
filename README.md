@@ -55,6 +55,15 @@ to stdout as a new fumen, separated by newlines. If the fumen is inside a url,
 the url will be preserved in the output. Fumen editor:
 [https://fumen.zui.jp/#english.js](https://fumen.zui.jp/#english.js)
 
+Finds the shortest perfect clear solution of each input fumen. The queue is
+encoded in the comment of the fumen, in the format:
+
+`#Q=[<HOLD>](<CURRENT>)<NEXT1><NEXT2>...<NEXTn>`
+
+Outputs each solution to stdout as a new fumen, separated by newlines. If the
+fumen is inside a url, the url will be preserved in the output. Fumen editor:
+[https://fumen.zui.jp/#english.js](https://fumen.zui.jp/#english.js)
+
 #### Options
 
 `-a`, `--append` Append solution frames to input fumen instead of making a new
@@ -66,6 +75,11 @@ fumen from scratch.
 180-less and 180 variant, the 180-less variant has no 180 rotations. The 180
 variant has 180 rotations but no 180 kicks. Supported Values:
 [none,none180,srs,srs180,srsPlus,srsTetrio] (default: srs)
+
+`-m`, `--min-height` Overrides the minimum height of the PC to find.
+
+`-n`, `--nn` The path to the neural network to use for the bot. If not
+provided, a default built-in network will be used.
 
 `-s`, `--save` The piece type to save in the hold slot by the end of the
 perfect clear. If not specified, any piece may go into the hold slot. Supported

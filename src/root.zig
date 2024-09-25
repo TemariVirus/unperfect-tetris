@@ -185,6 +185,7 @@ pub fn findPcAuto(
     save_hold: ?PieceKind,
 ) ![]Placement {
     const placements = try allocator.alloc(Placement, max_len);
+    errdefer allocator.free(placements);
     const height = @max(
         min_height,
         (minPcInfo(game.playfield) orelse return FindPcError.NoPcExists).height,
