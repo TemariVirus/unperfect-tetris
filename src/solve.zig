@@ -30,7 +30,8 @@ const THREADS = 6;
 
 const SAVE_PATH = std.fmt.comptimePrint("pc-data/{}", .{HEIGHT});
 
-// Count of threads saving to disk to make sure all threads finish saving before exiting.
+// Count of threads saving to disk to make sure all threads finish saving
+// before exiting.
 var saving_threads = std.atomic.Value(i32).init(0);
 
 /// Thread-safe ring buffer for distributing work, and storing and writing
@@ -69,7 +70,11 @@ const SolutionBuffer = struct {
     pub fn loadOrInit(allocator: Allocator, path: []const u8) !SolutionBuffer {
         const pc_path = try std.fmt.allocPrint(allocator, "{s}.pc", .{path});
         defer allocator.free(pc_path);
-        const count_path = try std.fmt.allocPrint(allocator, "{s}.count", .{path});
+        const count_path = try std.fmt.allocPrint(
+            allocator,
+            "{s}.count",
+            .{path},
+        );
         defer allocator.free(count_path);
 
         var self = try init(allocator);
@@ -183,12 +188,14 @@ const SolutionBuffer = struct {
         defer self.mutex.unlock();
 
         // Check if there's anything to write
-        if (self.isEmpty() or self.lengths[mask(self.read_idx)].load(.monotonic) < 0) {
+        if (self.isEmpty() or
+            self.lengths[mask(self.read_idx)].load(.monotonic) < 0)
+        {
             return false;
         }
 
-        // Multiple threads can save at the same time, but no threads should start
-        // saving when we are exiting
+        // Multiple threads can save at the same time, but no threads should
+        // start saving when we are exiting
         if (saving_threads.load(.monotonic) < 0) {
             return false;
         }
@@ -199,7 +206,11 @@ const SolutionBuffer = struct {
         const allocator = self.iter.seen.allocator;
 
         const pc_file = blk: {
-            const pc_path = try std.fmt.allocPrint(allocator, "{s}.pc", .{path});
+            const pc_path = try std.fmt.allocPrint(
+                allocator,
+                "{s}.pc",
+                .{path},
+            );
             defer allocator.free(pc_path);
 
             break :blk fs.cwd().openFile(
@@ -227,10 +238,12 @@ const SolutionBuffer = struct {
         while (!self.isEmpty() and
             self.lengths[mask(self.read_idx)].load(.monotonic) >= 0)
         {
-            const len: usize = @intCast(self.lengths[mask(self.read_idx)].load(.monotonic));
+            const len: usize = @intCast(self.lengths[mask(self.read_idx)]
+                .load(.monotonic));
             self.solved += len;
             // NOTE: for the last chunk, the count value may become larger than
-            // it actually is. This isn't an issue as the iterator is already exhausted.
+            // it actually is. This isn't an issue as the iterator is already
+            // exhausted.
             self.count += CHUNK_SIZE;
             try self.saveAppend(pc_writer, len);
 
@@ -239,9 +252,16 @@ const SolutionBuffer = struct {
         }
         try buf_writer.flush();
 
-        const count_path = try std.fmt.allocPrint(allocator, "{s}.count", .{path});
+        const count_path = try std.fmt.allocPrint(
+            allocator,
+            "{s}.count",
+            .{path},
+        );
         defer allocator.free(count_path);
-        var count_file = try fs.cwd().atomicFile(count_path, .{ .make_path = true });
+        var count_file = try fs.cwd().atomicFile(
+            count_path,
+            .{ .make_path = true },
+        );
         defer count_file.deinit();
 
         try count_file.file.writer().print("{d}", .{self.count});
@@ -271,7 +291,8 @@ const SolutionBuffer = struct {
             for (sol, 0..) |placement, i| {
                 // Use canonical position so that the position is always in the
                 // range [0, 59]
-                const canon_pos = placement.piece.canonicalPosition(placement.pos);
+                const canon_pos = placement.piece
+                    .canonicalPosition(placement.pos);
                 const pos = canon_pos.y * 10 + canon_pos.x;
                 assert(pos < 60);
                 placements[i] = @intFromEnum(placement.piece.facing) |
@@ -307,7 +328,11 @@ const SolutionBuffer = struct {
             // Create backup files
             const allocator = self.iter.seen.allocator;
             {
-                const pc_path = try std.fmt.allocPrint(allocator, "{s}.pc", .{path});
+                const pc_path = try std.fmt.allocPrint(
+                    allocator,
+                    "{s}.pc",
+                    .{path},
+                );
                 defer allocator.free(pc_path);
                 const backup_path = try std.fmt.allocPrint(
                     allocator,
@@ -380,7 +405,13 @@ pub fn main() !void {
     }
 }
 
-const handle_signals = [_]c_int{ SIG.ABRT, SIG.INT, SIG.QUIT, SIG.STOP, SIG.TERM };
+const handle_signals = [_]c_int{
+    SIG.ABRT,
+    SIG.INT,
+    SIG.QUIT,
+    SIG.STOP,
+    SIG.TERM,
+};
 fn setupExitHandler() void {
     if (@import("builtin").os.tag == .windows) {
         const signal = struct {

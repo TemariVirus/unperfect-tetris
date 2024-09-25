@@ -33,11 +33,17 @@ pub fn findPc(
     placements: []Placement,
     save_hold: ?PieceKind,
 ) ![]Placement {
-    const pc_info = root.minPcInfo(game.playfield) orelse return FindPcError.NoPcExists;
+    const pc_info = root.minPcInfo(game.playfield) orelse
+        return FindPcError.NoPcExists;
     var pieces_needed: u16 = pc_info.pieces_needed;
     var max_height: u7 = pc_info.height;
 
-    const pieces = try root.pc.getPieces(BagType, allocator, game, placements.len + 1);
+    const pieces = try root.pc.getPieces(
+        BagType,
+        allocator,
+        game,
+        placements.len + 1,
+    );
     defer allocator.free(pieces);
 
     if (save_hold) |hold| {
@@ -66,9 +72,9 @@ pub fn findPc(
 
     const do_o_rotations = root.pc.hasOKicks(game.kicks);
 
-    // 20 is the lowest common multiple of the width of the playfield (10) and the
-    // number of cells in a piece (4). 20 / 4 = 5 extra pieces for each bigger
-    // perfect clear.
+    // 20 is the lowest common multiple of the width of the playfield (10) and
+    // the number of cells in a piece (4). 20 / 4 = 5 extra pieces for each
+    // bigger perfect clear.
     while (pieces_needed <= placements.len) {
         defer pieces_needed += 5;
         defer max_height += 2;
@@ -291,7 +297,10 @@ pub fn getFeatures(
             var aug_h: [10]i32 = undefined;
             aug_h[0] = @min(heights[0] - 2, heights[1]);
             for (1..9) |x| {
-                aug_h[x] = @min(heights[x] - 2, @max(heights[x - 1], heights[x + 1]));
+                aug_h[x] = @min(
+                    heights[x] - 2,
+                    @max(heights[x - 1], heights[x + 1]),
+                );
             }
             aug_h[9] = @min(heights[9] - 2, heights[8]);
             break :inner aug_h;
@@ -419,7 +428,10 @@ pub fn getFeatures(
 test "4-line PC" {
     const allocator = std.testing.allocator;
 
-    var gamestate = GameState(SevenBag).init(SevenBag.init(0), engine.kicks.srsPlus);
+    var gamestate = GameState(SevenBag).init(
+        SevenBag.init(0),
+        engine.kicks.srsPlus,
+    );
 
     const nn = try NN.load(allocator, "NNs/Fast3.json");
     defer nn.deinit(allocator);

@@ -36,7 +36,8 @@ pub fn findPc(
     save_hold: ?PieceKind,
 ) ![]Placement {
     const playfield = BoardMask.from(game.playfield);
-    const pc_info = root.minPcInfo(game.playfield) orelse return FindPcError.NoPcExists;
+    const pc_info = root.minPcInfo(game.playfield) orelse
+        return FindPcError.NoPcExists;
     var pieces_needed = pc_info.pieces_needed;
     var max_height = pc_info.height;
 
@@ -69,9 +70,9 @@ pub fn findPc(
 
     const do_o_rotations = hasOKicks(game.kicks);
 
-    // 20 is the lowest common multiple of the width of the playfield (10) and the
-    // number of cells in a piece (4). 20 / 4 = 5 extra pieces for each bigger
-    // perfect clear.
+    // 20 is the lowest common multiple of the width of the playfield (10) and
+    // the number of cells in a piece (4). 20 / 4 = 5 extra pieces for each
+    // bigger perfect clear.
     while (pieces_needed <= placements.len and max_height <= 6) {
         defer pieces_needed += 5;
         defer max_height += 2;
@@ -279,9 +280,9 @@ fn findPcInner(
     return false;
 }
 
-/// A fast check to see if a perfect clear is possible by making sure every empty
-/// "segment" of the playfield has a multiple of 4 cells. Assumes the total number
-/// of empty cells is a multiple of 4.
+/// A fast check to see if a perfect clear is possible by making sure every
+/// empty "segment" of the playfield has a multiple of 4 cells. Assumes the
+/// total number of empty cells is a multiple of 4.
 pub fn isPcPossible(playfield: BoardMask, max_height: u3) bool {
     assert(playfield.mask >> (@as(u6, max_height) * BoardMask.WIDTH) == 0);
     assert((@as(u6, max_height) * BoardMask.WIDTH - @popCount(playfield.mask)) % 4 == 0);
@@ -314,8 +315,8 @@ pub fn isPcPossible(playfield: BoardMask, max_height: u3) bool {
         walls &= walls - 1;
     }
 
-    // The remaining empty cells must also be a multiple of 4, so we don't need to
-    // check the leftmost segment
+    // The remaining empty cells must also be a multiple of 4, so we don't need
+    // to  check the leftmost segment
     return true;
 }
 
@@ -357,7 +358,10 @@ pub fn getFeatures(
             var aug_h: [10]i32 = undefined;
             aug_h[0] = @min(heights[0] - 2, heights[1]);
             for (1..9) |x| {
-                aug_h[x] = @min(heights[x] - 2, @max(heights[x - 1], heights[x + 1]));
+                aug_h[x] = @min(
+                    heights[x] - 2,
+                    @max(heights[x - 1], heights[x + 1]),
+                );
             }
             aug_h[9] = @min(heights[9] - 2, heights[8]);
             break :inner aug_h;
@@ -365,7 +369,8 @@ pub fn getFeatures(
 
         var caves: i32 = 0;
         for (0..@max(1, highest) - 1) |y| {
-            var covered = ~playfield.row(@intCast(y)) & playfield.row(@intCast(y + 1));
+            var covered = ~playfield.row(@intCast(y)) &
+                playfield.row(@intCast(y + 1));
             // Iterate through set bits
             while (covered != 0) : (covered &= covered - 1) {
                 const x = @ctz(covered);
@@ -411,7 +416,9 @@ pub fn getFeatures(
         break :blk row_mask;
     };
     const row_trans: f32 = if (inputs_used[3])
-        @floatFromInt(@popCount((playfield.mask ^ (playfield.mask << 1)) & row_mask))
+        @floatFromInt(@popCount(
+            (playfield.mask ^ (playfield.mask << 1)) & row_mask,
+        ))
     else
         undefined;
 
@@ -448,7 +455,10 @@ fn orderScore(playfield: BoardMask, max_height: u3, nn: NN) f32 {
 test "4-line PC" {
     const allocator = std.testing.allocator;
 
-    var gamestate = GameState(SevenBag).init(SevenBag.init(0), engine.kicks.srsPlus);
+    var gamestate = GameState(SevenBag).init(
+        SevenBag.init(0),
+        engine.kicks.srsPlus,
+    );
 
     const nn = try NN.load(allocator, "NNs/Fast3.json");
     defer nn.deinit(allocator);

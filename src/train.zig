@@ -32,19 +32,19 @@ comptime {
 const THREADS = 4;
 
 const SAVE_INTERVAL = 10 * time.ns_per_s;
-const SAVE_DIR = "pops/swish-identity/";
+const SAVE_DIR = "pops/relu-identity/";
 
 const GENERATIONS = 50;
-const POPULATION_SIZE = 1000;
+const POPULATION_SIZE = 500;
 const OPTIONS = Trainer.Options{
-    .species_target = 20,
+    .species_target = 15,
     .mutate_options = .{
-        .node_add_prob = 0.05,
+        .node_add_prob = 0.04,
     },
     .nn_options = .{
         .input_count = NN.INPUT_COUNT,
         .output_count = 1,
-        .hidden_activation = .swish,
+        .hidden_activation = .relu,
         .output_activation = .identity,
     },
 };
@@ -131,7 +131,13 @@ pub fn main() !void {
     }
 }
 
-const handle_signals = [_]c_int{ SIG.ABRT, SIG.INT, SIG.QUIT, SIG.STOP, SIG.TERM };
+const handle_signals = [_]c_int{
+    SIG.ABRT,
+    SIG.INT,
+    SIG.QUIT,
+    SIG.STOP,
+    SIG.TERM,
+};
 fn setupExitHandler() void {
     if (@import("builtin").os.tag == .windows) {
         const signal = struct {
@@ -184,8 +190,15 @@ fn loadOrInit(
     options: Trainer.Options,
 ) !struct { Trainer, []?f64, u64 } {
     // Init if file does not exist
-    fs.cwd().access(path, .{}) catch |e| if (e == fs.Dir.AccessError.FileNotFound) {
-        var trainer = try Trainer.init(allocator, population_size, 0.6, options);
+    fs.cwd().access(path, .{}) catch |e|
+        if (e == fs.Dir.AccessError.FileNotFound)
+    {
+        var trainer = try Trainer.init(
+            allocator,
+            population_size,
+            0.6,
+            options,
+        );
         errdefer trainer.deinit();
         const fitnesses = try allocator.alloc(?f64, population_size);
         @memset(fitnesses, null);
@@ -250,7 +263,9 @@ fn save(
     const trainer_json = try Trainer.TrainerJson.init(allocator, trainer);
     defer trainer_json.deinit(allocator);
 
-    try fs.cwd().makePath(std.fs.path.dirname(path) orelse return error.InvalidPath);
+    try fs
+        .cwd()
+        .makePath(std.fs.path.dirname(path) orelse return error.InvalidPath);
     const file = try fs.cwd().createFile(path, .{});
     defer file.close();
 
@@ -358,7 +373,7 @@ fn doWork(
 }
 
 fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
-    const RUN_COUNT = 50;
+    const RUN_COUNT = 100;
 
     const placements = try allocator.alloc(root.Placement, HEIGHT * 10 / 4);
     defer allocator.free(placements);
@@ -396,7 +411,7 @@ fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
         }
         const time_taken = @as(f64, @floatFromInt(timer.read())) /
             @as(f64, @floatFromInt(i));
-        const fitness = time.ns_per_s / (time_taken + time.ns_per_ms);
+        const fitness = time.ns_per_s / (time_taken + 1);
         if (fitness < 15) {
             return fitness;
         }
@@ -404,6 +419,6 @@ fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
 
     // Return solutions/s as fitness
     const time_taken = @as(f64, @floatFromInt(timer.read())) / RUN_COUNT;
-    // Add 1ms to avoid division by zero
-    return time.ns_per_s / (time_taken + time.ns_per_ms);
+    // Add 1 to avoid division by zero
+    return time.ns_per_s / (time_taken + 1);
 }

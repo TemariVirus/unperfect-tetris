@@ -48,15 +48,20 @@ pub const BoardMask = struct {
 
     /// Check if a piece would collide with the board mask at a given position.
     pub fn collides(self: BoardMask, piece: Piece, pos: Position) bool {
-        if (pos.x < piece.minX() or pos.x > piece.maxX() or pos.y < piece.minY()) {
+        if (pos.x < piece.minX() or
+            pos.x > piece.maxX() or
+            pos.y < piece.minY())
+        {
             return true;
         }
 
         const shift = getShift(pos);
         if (shift > 0) {
-            return self.mask & (PieceMask.from(piece).mask << @intCast(shift)) != 0;
+            return self.mask &
+                (PieceMask.from(piece).mask << @intCast(shift)) != 0;
         }
-        return self.mask & (PieceMask.from(piece).mask >> @intCast(-shift)) != 0;
+        return self.mask &
+            (PieceMask.from(piece).mask >> @intCast(-shift)) != 0;
     }
 
     /// Place a piece on the board mask at a given position.
@@ -157,7 +162,10 @@ pub const PieceMask = struct {
         return .{ .mask = mask };
     }
 
-    fn makeAttributeTable(comptime T: type, comptime attribute: fn (Piece) T) [28]T {
+    fn makeAttributeTable(
+        comptime T: type,
+        comptime attribute: fn (Piece) T,
+    ) [28]T {
         var table: [28]T = undefined;
         for (@typeInfo(PieceKind).Enum.fields) |p| {
             for (@typeInfo(Facing).Enum.fields) |f| {

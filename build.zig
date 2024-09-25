@@ -28,7 +28,10 @@ pub fn build(b: *Build) void {
         .root_source_file = b.path("src/root.zig"),
         .imports = &.{
             .{ .name = "engine", .module = engine_module },
-            .{ .name = "nterm", .module = engine_module.import_table.get("nterm").? },
+            .{
+                .name = "nterm",
+                .module = engine_module.import_table.get("nterm").?,
+            },
             .{ .name = "zmai", .module = zmai_module },
         },
     });
@@ -72,9 +75,18 @@ fn buildExe(
     });
     exe.root_module.addImport("perfect-tetris", root_module);
     exe.root_module.addImport("zig-args", args_module);
-    exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
-    exe.root_module.addImport("nterm", root_module.import_table.get("nterm").?);
-    exe.root_module.addImport("zmai", root_module.import_table.get("zmai").?);
+    exe.root_module.addImport(
+        "engine",
+        root_module.import_table.get("engine").?,
+    );
+    exe.root_module.addImport(
+        "nterm",
+        root_module.import_table.get("nterm").?,
+    );
+    exe.root_module.addImport(
+        "zmai",
+        root_module.import_table.get("zmai").?,
+    );
 
     exe.root_module.addAnonymousImport("nn_json", .{
         .root_source_file = b.path("NNs/Fast3-mini.json"),
@@ -109,7 +121,10 @@ fn buildSolve(
         .optimize = optimize,
     });
     exe.root_module.addImport("perfect-tetris", root_module);
-    exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
+    exe.root_module.addImport(
+        "engine",
+        root_module.import_table.get("engine").?,
+    );
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
@@ -125,9 +140,18 @@ fn buildTests(b: *Build, root_module: *Build.Module) void {
     const lib_tests = b.addTest(.{
         .root_source_file = b.path("src/root.zig"),
     });
-    lib_tests.root_module.addImport("options", root_module.import_table.get("options").?);
-    lib_tests.root_module.addImport("engine", root_module.import_table.get("engine").?);
-    lib_tests.root_module.addImport("zmai", root_module.import_table.get("zmai").?);
+    lib_tests.root_module.addImport(
+        "options",
+        root_module.import_table.get("options").?,
+    );
+    lib_tests.root_module.addImport(
+        "engine",
+        root_module.import_table.get("engine").?,
+    );
+    lib_tests.root_module.addImport(
+        "zmai",
+        root_module.import_table.get("zmai").?,
+    );
 
     const run_lib_tests = b.addRunArtifact(lib_tests);
     const test_step = b.step("test", "Run library tests");
@@ -146,7 +170,10 @@ fn buildBench(
         .optimize = .ReleaseFast,
     });
     bench_exe.root_module.addImport("perfect-tetris", root_module);
-    bench_exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
+    bench_exe.root_module.addImport(
+        "engine",
+        root_module.import_table.get("engine").?,
+    );
 
     const bench_cmd = b.addRunArtifact(bench_exe);
     bench_cmd.step.dependOn(b.getInstallStep());
@@ -170,8 +197,14 @@ fn buildTrain(
         .optimize = optimize,
     });
     train_exe.root_module.addImport("perfect-tetris", root_module);
-    train_exe.root_module.addImport("engine", root_module.import_table.get("engine").?);
-    train_exe.root_module.addImport("zmai", root_module.import_table.get("zmai").?);
+    train_exe.root_module.addImport(
+        "engine",
+        root_module.import_table.get("engine").?,
+    );
+    train_exe.root_module.addImport(
+        "zmai",
+        root_module.import_table.get("zmai").?,
+    );
 
     const train_cmd = b.addRunArtifact(train_exe);
     train_cmd.step.dependOn(b.getInstallStep());

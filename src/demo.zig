@@ -116,7 +116,14 @@ pub fn main(allocator: Allocator, args: DemoArgs) !void {
             triggered = true;
             player.tick(dt, 0, &.{});
 
-            fps_view.printAt(0, 0, Colors.WHITE, null, "{d:.2}FPS", .{nterm.fps()});
+            fps_view.printAt(
+                0,
+                0,
+                Colors.WHITE,
+                null,
+                "{d:.2}FPS",
+                .{nterm.fps()},
+            );
             player.draw();
             nterm.render() catch |err| {
                 // Trying to render after the terminal has been closed results
@@ -165,7 +172,12 @@ fn placePcPiece(
     }
 }
 
-fn pcThread(allocator: Allocator, nn: NN, state: GameState, queue: *SolutionList) !void {
+fn pcThread(
+    allocator: Allocator,
+    nn: NN,
+    state: GameState,
+    queue: *SolutionList,
+) !void {
     var game = state;
 
     while (true) {

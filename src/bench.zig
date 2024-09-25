@@ -53,7 +53,11 @@ fn standardDeviation(T: type, values: []T) !f64 {
     return @sqrt(sum / @as(f64, @floatFromInt(values.len)));
 }
 
-pub fn pcBenchmark(comptime height: u8, nn_path: []const u8, slow: bool) !void {
+pub fn pcBenchmark(
+    comptime height: u8,
+    nn_path: []const u8,
+    slow: bool,
+) !void {
     const RUN_COUNT = 200;
 
     std.debug.print(
@@ -80,7 +84,10 @@ pub fn pcBenchmark(comptime height: u8, nn_path: []const u8, slow: bool) !void {
 
     var times: [RUN_COUNT]u64 = undefined;
     for (0..RUN_COUNT) |i| {
-        const gamestate = GameState.init(SevenBag.init(i), engine.kicks.srsPlus);
+        const gamestate = GameState.init(
+            SevenBag.init(i),
+            engine.kicks.srsPlus,
+        );
 
         const solve_start = time.nanoTimestamp();
         const solution = if (slow)
@@ -138,7 +145,11 @@ pub fn getFeaturesBenchmark() void {
     var game = GameState.init(SevenBag.init(xor.next()), engine.kicks.srsPlus);
     for (0..3) |_| {
         game.current.facing = rand.enumValue(engine.pieces.Facing);
-        game.pos.x = rand.intRangeAtMost(i8, game.current.minX(), game.current.maxX());
+        game.pos.x = rand.intRangeAtMost(
+            i8,
+            game.current.minX(),
+            game.current.maxX(),
+        );
         _ = game.dropToGround();
         _ = game.lockCurrent(-1);
     }
@@ -152,5 +163,8 @@ pub fn getFeaturesBenchmark() void {
     }
     const time_taken: u64 = @intCast(time.nanoTimestamp() - start);
 
-    std.debug.print("Mean: {}\n", .{std.fmt.fmtDuration(time_taken / RUN_COUNT)});
+    std.debug.print(
+        "Mean: {}\n",
+        .{std.fmt.fmtDuration(time_taken / RUN_COUNT)},
+    );
 }

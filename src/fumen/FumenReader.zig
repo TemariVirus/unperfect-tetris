@@ -258,7 +258,11 @@ const QuizWriter = struct {
         }
     }
 
-    pub fn writeAll(self: *QuizWriter, writer: anytype, char: []const u8) !void {
+    pub fn writeAll(
+        self: *QuizWriter,
+        writer: anytype,
+        char: []const u8,
+    ) !void {
         for (char) |c| {
             try self.write(writer, c);
         }
@@ -276,7 +280,10 @@ const QuizWriter = struct {
     }
 };
 
-pub fn parse(allocator: Allocator, fumen: []const u8) AllocOrFumenError!ParsedFumen {
+pub fn parse(
+    allocator: Allocator,
+    fumen: []const u8,
+) AllocOrFumenError!ParsedFumen {
     var reader = try FumenReader.init(allocator, fumen);
     errdefer reader.deinit();
 
@@ -351,7 +358,8 @@ pub fn outputFumen(
 
     // Write solution
     for (solution[1..], 0..) |p, i| {
-        // Assumes that the current fumen is a quiz, so field setting is completely empty
+        // Assumes that the current fumen is a quiz, so field setting is
+        // completely empty
         if (i % 64 == 0) {
             try writer.writeAll(&unpoll(2, 9 * FIELD_LEN - 1));
             try writer.writeAll(&unpoll(1, @min(64, solution.len - i)));
@@ -697,7 +705,11 @@ fn pieceKindStr(piece: PieceKind) u8 {
     };
 }
 
-fn writeQuiz(writer: anytype, hold: ?PieceKind, next: []const PieceKind) !void {
+fn writeQuiz(
+    writer: anytype,
+    hold: ?PieceKind,
+    next: []const PieceKind,
+) !void {
     assert(next.len > 0);
     // Write length
     try writer.writeAll(&unpoll(
@@ -759,7 +771,8 @@ fn clearLines(self: *FumenReader) void {
         y -= 1;
         var full = true;
         for (0..FIELD_WIDTH) |x| {
-            self.field[(y + cleared) * FIELD_WIDTH + x] = self.field[y * FIELD_WIDTH + x];
+            self.field[(y + cleared) * FIELD_WIDTH + x] =
+                self.field[y * FIELD_WIDTH + x];
             if (self.field[y * FIELD_WIDTH + x] == .empty) {
                 full = false;
             }
@@ -790,7 +803,10 @@ fn riseField(self: *FumenReader) void {
 fn mirrorField(self: *FumenReader) void {
     // Don't mirror bottom row
     for (0..FIELD_HEIGHT - 1) |y| {
-        mem.reverse(FumenBlock, self.field[y * FIELD_WIDTH .. (y + 1) * FIELD_WIDTH]);
+        mem.reverse(
+            FumenBlock,
+            self.field[y * FIELD_WIDTH .. (y + 1) * FIELD_WIDTH],
+        );
     }
 }
 
@@ -831,7 +847,8 @@ fn readPage(self: *FumenReader) AllocOrFumenError!void {
                     .x = @intCast(x),
                     .y = -@as(i8, @intCast(y)),
                 });
-                // Pieces cannot be placed in bottom row, but can extend out of the top
+                // Pieces cannot be placed in bottom row, but can extend out of
+                // the top
                 if (mino_pos.x < 0 or
                     mino_pos.x >= FIELD_WIDTH or
                     mino_pos.y >= FIELD_HEIGHT - 1)
@@ -851,7 +868,10 @@ fn readPage(self: *FumenReader) AllocOrFumenError!void {
         }
 
         // Don't update quiz state if quiz is over
-        if (self.current == null and self.hold == null and self.next.items.len == 0) {
+        if (self.current == null and
+            self.hold == null and
+            self.next.items.len == 0)
+        {
             break :blk;
         }
 

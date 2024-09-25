@@ -176,7 +176,8 @@ fn printFooter(pos: u64, end: ?u64) void {
 }
 
 fn nextSolution(reader: anytype) u64 {
-    const solution = (PCSolution.readOne(reader) catch return 0) orelse return 0;
+    const solution = (PCSolution.readOne(reader) catch return 0) orelse
+        return 0;
     return 8 + @as(u64, solution.next.len) - 1;
 }
 
@@ -272,7 +273,14 @@ fn drawSequence(pieces: []const PieceKind) void {
         .width = WIDTH,
         .height = @intCast(pieces.len * 3 + 2),
     };
-    box_view.drawBox(0, 0, box_view.width, box_view.height, Colors.WHITE, null);
+    box_view.drawBox(
+        0,
+        0,
+        box_view.width,
+        box_view.height,
+        Colors.WHITE,
+        null,
+    );
 
     const box = box_view.sub(1, 1, box_view.width - 2, box_view.height - 2);
     for (pieces, 0..) |p, i| {
@@ -299,7 +307,12 @@ fn drawPiece(view: View, piece: Piece, x: i8, y: i8) void {
 }
 
 /// Draw a piece in the matrix view, and update the row occupancy.
-fn drawMatrixPiece(view: View, row_occupancy: []u8, piece: Piece, pos: Position) void {
+fn drawMatrixPiece(
+    view: View,
+    row_occupancy: []u8,
+    piece: Piece,
+    pos: Position,
+) void {
     const minos = getMinos(piece);
     const color = piece.kind.color();
     for (minos) |mino| {

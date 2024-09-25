@@ -27,7 +27,10 @@ pub const PiecePosSet = @import("PiecePosSet.zig").PiecePosSet(.{
 
 // 40 cells * 4 rotations = 160 intermediate placements at most
 // 60 cells * 4 rotations = 240 intermediate placements at most
-const PlacementStack = std.BoundedArray(PiecePosition, if (small) 160 else 240);
+const PlacementStack = std.BoundedArray(
+    PiecePosition,
+    if (small) 160 else 240,
+);
 const PiecePosition = if (small) packed struct {
     facing: Facing,
     pos: u6,
@@ -98,13 +101,19 @@ pub const Intermediate = struct {
                 if (self.pos.x <= self.current.minX()) {
                     break :blk false;
                 }
-                break :blk self.tryTranspose(.{ .x = self.pos.x - 1, .y = self.pos.y });
+                break :blk self.tryTranspose(.{
+                    .x = self.pos.x - 1,
+                    .y = self.pos.y,
+                });
             },
             .right => blk: {
                 if (self.pos.x >= self.current.maxX()) {
                     break :blk false;
                 }
-                break :blk self.tryTranspose(.{ .x = self.pos.x + 1, .y = self.pos.y });
+                break :blk self.tryTranspose(.{
+                    .x = self.pos.x + 1,
+                    .y = self.pos.y,
+                });
             },
             .rotate_cw => self.tryRotate(.quarter_cw),
             .rotate_double => self.tryRotate(.half),
@@ -113,7 +122,10 @@ pub const Intermediate = struct {
                 if (self.pos.y <= self.current.minY()) {
                     break :blk false;
                 }
-                break :blk self.tryTranspose(.{ .x = self.pos.x, .y = self.pos.y - 1 });
+                break :blk self.tryTranspose(.{
+                    .x = self.pos.x,
+                    .y = self.pos.y - 1,
+                });
             },
         };
     }
@@ -250,7 +262,8 @@ pub fn allPlacementsRaw(
                 TPiecePosition.pack(new_game.current, new_game.pos),
             ) catch unreachable;
 
-            // Skip this placement if the piece is too high, or if it's not on the ground
+            // Skip this placement if the piece is too high, or if it's not on
+            // the ground
             if (new_game.pos.y + @as(i8, new_game.current.top()) > max_height or
                 !new_game.onGround())
             {

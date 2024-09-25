@@ -57,13 +57,19 @@ const Intermediate = struct {
                 if (self.pos.x <= self.current.minX()) {
                     break :blk false;
                 }
-                break :blk self.tryTranspose(.{ .x = self.pos.x - 1, .y = self.pos.y });
+                break :blk self.tryTranspose(.{
+                    .x = self.pos.x - 1,
+                    .y = self.pos.y,
+                });
             },
             .right => blk: {
                 if (self.pos.x >= self.current.maxX()) {
                     break :blk false;
                 }
-                break :blk self.tryTranspose(.{ .x = self.pos.x + 1, .y = self.pos.y });
+                break :blk self.tryTranspose(.{
+                    .x = self.pos.x + 1,
+                    .y = self.pos.y,
+                });
             },
             .rotate_cw => self.tryRotate(.quarter_cw),
             .rotate_double => self.tryRotate(.half),
@@ -72,12 +78,16 @@ const Intermediate = struct {
                 if (self.pos.y <= self.current.minY()) {
                     break :blk false;
                 }
-                break :blk self.tryTranspose(.{ .x = self.pos.x, .y = self.pos.y - 1 });
+                break :blk self.tryTranspose(.{
+                    .x = self.pos.x,
+                    .y = self.pos.y - 1,
+                });
             },
         };
     }
 
-    /// Returns `true` if the piece was successfully transposed. Otherwise, `false`.
+    /// Returns `true` if the piece was successfully transposed. Otherwise,
+    /// `false`.
     fn tryTranspose(self: *Intermediate, pos: Position) bool {
         if (self.playfield.collides(self.current.mask(), pos)) {
             return false;
@@ -86,7 +96,8 @@ const Intermediate = struct {
         return true;
     }
 
-    /// Returns `true` if the piece was successfully rotated. Otherwise, `false`.
+    /// Returns `true` if the piece was successfully rotated. Otherwise,
+    /// `false`.
     fn tryRotate(self: *Intermediate, rotation: Rotation) bool {
         if (self.current.kind == .o and !self.do_o_rotation) {
             return false;
@@ -154,7 +165,8 @@ const compareFn = (struct {
 pub const MoveQueue = std.PriorityQueue(MoveNode, void, compareFn);
 
 /// Scores and orders the moves in `moves` based on the `scoreFn`, removing
-/// placements where `validFn` returns `false`. Higher scores are dequeued first.
+/// placements where `validFn` returns `false`. Higher scores are dequeued
+/// first.
 pub fn orderMoves(
     queue: *MoveQueue,
     playfield: BoardMask,
@@ -177,7 +189,10 @@ pub fn orderMoves(
 
         queue.add(.{
             .placement = placement,
-            .score = scoreFn(board.rows[0..@min(BoardMask.HEIGHT, new_height)], nn),
+            .score = scoreFn(
+                board.rows[0..@min(BoardMask.HEIGHT, new_height)],
+                nn,
+            ),
         }) catch unreachable;
     }
 }

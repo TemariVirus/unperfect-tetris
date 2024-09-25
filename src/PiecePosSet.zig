@@ -53,14 +53,17 @@ pub fn PiecePosSet(shape: [3]usize) type {
             return x + y * width + facing * width * height;
         }
 
-        /// Converts an index into the backing bit set to it's coressponding piece and
-        /// position.
+        /// Converts an index into the backing bit set to it's coressponding
+        /// piece and position.
         pub fn reverseIndex(piece_kind: PieceKind, index: usize) Placement {
             const x = index % width;
             const y = (index / width) % height;
             const facing = index / (width * height);
 
-            const piece = Piece{ .kind = piece_kind, .facing = @enumFromInt(facing) };
+            const piece = Piece{
+                .kind = piece_kind,
+                .facing = @enumFromInt(facing),
+            };
             return .{
                 .piece = piece,
                 .pos = .{
@@ -70,8 +73,8 @@ pub fn PiecePosSet(shape: [3]usize) type {
             };
         }
 
-        /// Returns `true` if the set contains the given piece-position combination;
-        /// Otherwise, `false`.
+        /// Returns `true` if the set contains the given piece-position
+        /// combination; Otherwise, `false`.
         pub fn contains(self: Self, piece: Piece, pos: Position) bool {
             const index = Self.flatIndex(piece, pos);
             return self.data.isSet(index);
@@ -83,8 +86,9 @@ pub fn PiecePosSet(shape: [3]usize) type {
             self.data.set(index);
         }
 
-        /// Adds the given piece-position combination to the set. Returns `true` if the
-        /// combination was already in the set; Otherwise, `false`.
+        /// Adds the given piece-position combination to the set. Returns
+        /// `true` if the combination was already in the set; Otherwise,
+        /// `false`.
         pub fn putGet(self: *Self, piece: Piece, pos: Position) bool {
             const index = Self.flatIndex(piece, pos);
 

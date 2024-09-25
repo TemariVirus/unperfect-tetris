@@ -37,7 +37,8 @@ pub fn PieceArray(comptime len: usize) type {
 
         pub fn get(self: @This(), index: usize) u3 {
             assert(index < self.len);
-            return @truncate(item_mask & (self.items >> @intCast(index * item_size)));
+            return @truncate(item_mask &
+                (self.items >> @intCast(index * item_size)));
         }
 
         pub fn set(self: @This(), index: usize, value: u3) @This() {
@@ -55,7 +56,9 @@ pub fn PieceArray(comptime len: usize) type {
 
         pub fn shiftLeft(self: @This(), shift: usize) @This() {
             assert(shift <= self.len);
-            return .{ .items = mask & (self.items << @intCast(shift * item_size)) };
+            return .{
+                .items = mask & (self.items << @intCast(shift * item_size)),
+            };
         }
 
         pub fn shiftRight(self: @This(), shift: usize) @This() {
@@ -95,7 +98,10 @@ pub fn NextIterator(comptime len: usize, comptime lock_len: usize) type {
                 for (1..size) |i| {
                     const selected_piece = lsb(iters[i - 1]);
                     frees[i] = frees[i - 1] ^ selected_piece;
-                    iters[i] = if (i < locks.len) lockedIter(locks[i]) else frees[i];
+                    iters[i] = if (i < locks.len)
+                        lockedIter(locks[i])
+                    else
+                        frees[i];
                 }
 
                 // If locks are impossible to satisfy, return an empty iterator
@@ -134,7 +140,8 @@ pub fn NextIterator(comptime len: usize, comptime lock_len: usize) type {
                 }
                 // Reverse the shift and write the other pieces back
                 p = p.shiftLeft(offset);
-                const lower = pieces.items & ~(NextArray.mask << @intCast(offset * 3));
+                const lower = pieces.items &
+                    ~(NextArray.mask << @intCast(offset * 3));
                 p = NextArray.init(p.items | lower);
 
                 // Advance iters
@@ -331,9 +338,9 @@ pub fn DigitsIterator(comptime len: usize) type {
     };
 }
 
-/// Iterates through all non-equivalent next sequences (including the hold) of length
-/// `len`. 'unlocked' is used to control the way iterations are chunked. A higher
-/// value uses more memory but reduces redundant computations.
+/// Iterates through all non-equivalent next sequences (including the hold) of
+/// length `len`. 'unlocked' is used to control the way iterations are chunked.
+/// A higher value uses more memory but reduces redundant computations.
 pub fn SequenceIterator(comptime len: usize, comptime unlocked: usize) type {
     assert(len > 2);
     assert(unlocked <= len - 1);
@@ -406,7 +413,9 @@ pub fn SequenceIterator(comptime len: usize, comptime unlocked: usize) type {
 
                 // NextIterator doesn't guarantee unique sequences, so we need
                 // to check by ourselves
-                const result = try self.seen.getOrPut(canonical(self.current).items);
+                const result = try self.seen.getOrPut(
+                    canonical(self.current).items,
+                );
                 if (result.found_existing) {
                     continue;
                 }
@@ -467,7 +476,9 @@ pub fn SequenceIterator(comptime len: usize, comptime unlocked: usize) type {
                 pieces[i] = @enumFromInt(swapped);
             }
             // Ensure canonical order
-            if (@as(u3, @intFromEnum(pieces[1])) > @as(u3, @intFromEnum(pieces[0]))) {
+            if (@as(u3, @intFromEnum(pieces[1])) >
+                @as(u3, @intFromEnum(pieces[0])))
+            {
                 std.mem.swap(PieceKind, &pieces[0], &pieces[1]);
             }
             return pieces;
@@ -500,7 +511,8 @@ test SequenceIterator {
     };
 
     inline for (3..COUNTS.len) |i| {
-        var iter = SequenceIterator(i, @min(6, i - 1)).init(std.testing.allocator);
+        var iter = SequenceIterator(i, @min(6, i - 1))
+            .init(std.testing.allocator);
         defer iter.deinit();
 
         var count: u64 = 0;

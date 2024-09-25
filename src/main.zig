@@ -159,7 +159,8 @@ pub fn enumValuesHelp(ArgsT: type, Enum: type) []const u8 {
     var fba = std.heap.FixedBufferAllocator.init(&buf);
     const allocator = fba.allocator();
 
-    var str = std.ArrayList(u8).initCapacity(allocator, total_len) catch unreachable;
+    var str = std.ArrayList(u8)
+        .initCapacity(allocator, total_len) catch unreachable;
     const writer = str.writer();
 
     writer.writeAll("Supported Values: [") catch unreachable;
