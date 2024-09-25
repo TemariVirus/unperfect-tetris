@@ -19,7 +19,7 @@ const Placement = root.Placement;
 
 const small = @import("options").small;
 
-const PiecePosSet = @import("PiecePosSet.zig").PiecePosSet(.{
+pub const PiecePosSet = @import("PiecePosSet.zig").PiecePosSet(.{
     10,
     (if (small) 4 else 6) + 3,
     4,
@@ -193,7 +193,7 @@ pub fn allPlacementsRaw(
     do_o_rotation: bool,
     kicks: *const KickFn,
     piece_kind: PieceKind,
-    max_height: u6,
+    max_height: u7,
 ) TPiecePosSet {
     var seen = TPiecePosSet.init();
     var placements = TPiecePosSet.init();

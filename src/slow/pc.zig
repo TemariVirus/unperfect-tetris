@@ -17,67 +17,25 @@ const Placement = root.Placement;
 
 const SearchNode = struct {
     rows: [23]u16,
-    height: u6,
-    save: PieceKind,
+    height: u7,
+    held: PieceKind,
 };
 const NodeSet = std.AutoHashMap(SearchNode, void);
 
-const FindPcError = root.pc.FindPcError;
+const FindPcError = root.FindPcError;
 
-/// Finds a perfect clear with the least number of pieces possible for the given
-/// game state, and returns the sequence of placements required to achieve it.
-///
-/// `min_height` determines the minimum height of the perfect clear.
-///
-/// `save_hold` determines what piece must be in the hold slot at the end of
-/// the sequence. If `save_hold` is `null`, this constraint is ignored.
-///
-/// Returns an error if no perfect clear exists, or if the number of pieces
-/// needed exceeds `max_pieces`.
 pub fn findPc(
     comptime BagType: type,
     allocator: Allocator,
     game: GameState(BagType),
     nn: NN,
-    min_height: u6,
+    min_height: u7,
     placements: []Placement,
     save_hold: ?PieceKind,
 ) ![]Placement {
-    const field_height = blk: {
-        var i: usize = BoardMask.HEIGHT;
-        while (i >= 1) : (i -= 1) {
-            if (game.playfield.rows[i - 1] != BoardMask.EMPTY_ROW) {
-                break;
-            }
-        }
-        break :blk i;
-    };
-    const bits_set = blk: {
-        var set: usize = 0;
-        for (0..field_height) |i| {
-            set += @popCount(game.playfield.rows[i] & ~BoardMask.EMPTY_ROW);
-        }
-        break :blk set;
-    };
-    const empty_cells = BoardMask.WIDTH * field_height - bits_set;
-
-    // Assumes that all pieces have 4 cells and that the playfield is 10 cells wide.
-    // Thus, an odd number of empty cells means that a perfect clear is impossible.
-    if (empty_cells % 2 == 1) {
-        return FindPcError.NoPcExists;
-    }
-
-    var pieces_needed = if (empty_cells % 4 == 2)
-        // If the number of empty cells is not a multiple of 4, we need to fill
-        // an extra so that it becomes a multiple of 4
-        // 2 + 10 = 12 which is a multiple of 4
-        (empty_cells + 10) / 4
-    else
-        empty_cells / 4;
-    // Don't return an empty solution
-    if (pieces_needed == 0) {
-        pieces_needed = 5;
-    }
+    const pc_info = root.minPcInfo(game.playfield) orelse return FindPcError.NoPcExists;
+    var pieces_needed: u16 = pc_info.pieces_needed;
+    var max_height: u7 = pc_info.height;
 
     const pieces = try root.pc.getPieces(BagType, allocator, game, placements.len + 1);
     defer allocator.free(pieces);
@@ -110,14 +68,16 @@ pub fn findPc(
 
     // 20 is the lowest common multiple of the width of the playfield (10) and the
     // number of cells in a piece (4). 20 / 4 = 5 extra pieces for each bigger
-    // perfect clear
-    while (pieces_needed <= placements.len) : (pieces_needed += 5) {
-        const max_height = (4 * pieces_needed + bits_set) / BoardMask.WIDTH;
+    // perfect clear.
+    while (pieces_needed <= placements.len) {
+        defer pieces_needed += 5;
+        defer max_height += 2;
+
         if (max_height < min_height) {
             continue;
         }
 
-        if (findPcInner(
+        if (try findPcInner(
             game.playfield,
             pieces[0 .. pieces_needed + 1],
             queues[0..pieces_needed],
@@ -126,7 +86,7 @@ pub fn findPc(
             game.kicks,
             &cache,
             nn,
-            @intCast(max_height),
+            max_height,
             save_hold,
         )) {
             return placements[0..pieces_needed];
@@ -151,9 +111,9 @@ fn findPcInner(
     kick_fn: *const KickFn,
     cache: *NodeSet,
     nn: NN,
-    max_height: u6,
+    max_height: u7,
     save_hold: ?PieceKind,
-) bool {
+) !bool {
     // Base case; check for perfect clear
     if (placements.len == 0) {
         return max_height == 0;
@@ -162,9 +122,9 @@ fn findPcInner(
     const node = SearchNode{
         .rows = playfield.rows[0..23].*,
         .height = max_height,
-        .save = pieces[0],
+        .held = pieces[0],
     };
-    if ((cache.getOrPut(node) catch unreachable).found_existing) {
+    if ((try cache.getOrPut(node)).found_existing) {
         return false;
     }
 
@@ -236,7 +196,7 @@ fn findPcInner(
         const cleared = board.clearLines(placement.pos.y);
 
         const new_height = max_height - cleared;
-        if (findPcInner(
+        if (try findPcInner(
             board,
             pieces[1..],
             queues[1..],

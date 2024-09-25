@@ -175,14 +175,13 @@ fn pcThread(allocator: Allocator, nn: NN, state: GameState, queue: *SolutionList
 
         // A 2- or 4-line PC is not always possible. 15 placements is enough
         // for a 6-line PC.
-        const placements = try allocator.alloc(Placement, 15);
-        const solution = try pc.findPc(
+        const solution = try root.findPcAuto(
             SevenBag,
             allocator,
             game,
             nn,
-            0,
-            placements,
+            2,
+            15,
             null,
         );
         for (solution) |placement| {
@@ -195,7 +194,6 @@ fn pcThread(allocator: Allocator, nn: NN, state: GameState, queue: *SolutionList
             game.nextPiece();
         }
 
-        assert(allocator.resize(placements, solution.len));
         try queue.append(solution);
     }
 }

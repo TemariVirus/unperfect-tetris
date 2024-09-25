@@ -1,23 +1,17 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const assert = std.debug.assert;
 const File = std.fs.File;
 
 const engine = @import("engine");
-const BoardMask = engine.bit_masks.BoardMask;
 const kicks = engine.kicks;
-const GameState = engine.GameState(FumenReader.FixedBag);
 const PieceKind = engine.pieces.PieceKind;
 
 const root = @import("perfect-tetris");
 const NN = root.NN;
-const pc = root.pc;
-const pc_slow = root.pc_slow;
-const Placement = root.Placement;
+const FindPcError = root.FindPcError;
 
 const enumValuesHelp = @import("../main.zig").enumValuesHelp;
-const getNnOrDefault = @import("../main.zig").getNnOrDefault;
-const FumenReader = @import("FumenReader.zig");
+pub const FumenReader = @import("FumenReader.zig");
 
 pub const Kicks = enum {
     none,
@@ -118,16 +112,18 @@ pub fn main(
     defer parsed.deinit(allocator);
 
     const gamestate = parsed.toGameState(args.kicks.toEngine());
-    const solution = findPc(
+    const solution = root.findPcAuto(
+        FumenReader.FixedBag,
         allocator,
-        parsed.next.len,
         gamestate,
         nn,
+        0,
+        parsed.next.len,
         args.save,
     ) catch |err| blk: {
-        if (err != pc.FindPcError.ImpossibleSaveHold and
-            err != pc.FindPcError.NoPcExists and
-            err != pc.FindPcError.SolutionTooLong)
+        if (err != FindPcError.ImpossibleSaveHold and
+            err != FindPcError.NoPcExists and
+            err != FindPcError.SolutionTooLong)
         {
             return err;
         }
@@ -160,81 +156,6 @@ pub fn main(
             );
         }
     }
-}
-
-fn findPc(
-    allocator: Allocator,
-    len: usize,
-    gamestate: GameState,
-    nn: NN,
-    save_hold: ?PieceKind,
-) ![]Placement {
-    const placements = try allocator.alloc(Placement, len);
-    errdefer allocator.free(placements);
-
-    const field_height = blk: {
-        var i: usize = BoardMask.HEIGHT;
-        while (i >= 1) : (i -= 1) {
-            if (gamestate.playfield.rows[i - 1] != BoardMask.EMPTY_ROW) {
-                break;
-            }
-        }
-        break :blk i;
-    };
-    const bits_set = blk: {
-        var set: usize = 0;
-        for (0..field_height) |i| {
-            set += @popCount(gamestate.playfield.rows[i] & ~BoardMask.EMPTY_ROW);
-        }
-        break :blk set;
-    };
-    const empty_cells = BoardMask.WIDTH * field_height - bits_set;
-    // Assumes that all pieces have 4 cells and that the playfield is 10 cells wide.
-    // Thus, an odd number of empty cells means that a perfect clear is impossible.
-    if (empty_cells % 2 == 1) {
-        return pc.FindPcError.NoPcExists;
-    }
-    var pieces_needed = if (empty_cells % 4 == 2)
-        // If the number of empty cells is not a multiple of 4, we need to fill
-        // an extra so that it becomes a multiple of 4
-        // 2 + 10 = 12 which is a multiple of 4
-        (empty_cells + 10) / 4
-    else
-        empty_cells / 4;
-    // Don't return an empty solution
-    if (pieces_needed == 0) {
-        pieces_needed = 5;
-    }
-    const start_height = (4 * pieces_needed + bits_set) / BoardMask.WIDTH;
-
-    // Use fast pc if possible
-    if (start_height <= 6) {
-        const max_pieces = pieces_needed + ((6 - start_height) / 2 * 5);
-        if (pc.findPc(
-            FumenReader.FixedBag,
-            allocator,
-            gamestate,
-            nn,
-            @intCast(start_height),
-            placements[0..@min(placements.len, max_pieces)],
-            save_hold,
-        )) |solution| {
-            assert(allocator.resize(placements, solution.len));
-            return solution;
-        } else |_| {}
-    }
-
-    const solution = try pc_slow.findPc(
-        FumenReader.FixedBag,
-        allocator,
-        gamestate,
-        nn,
-        @intCast(start_height),
-        placements,
-        save_hold,
-    );
-    assert(allocator.resize(placements, solution.len));
-    return solution;
 }
 
 test {

@@ -126,7 +126,7 @@ pub fn allPlacements(
     do_o_rotation: bool,
     kicks: *const KickFn,
     piece_kind: PieceKind,
-    max_height: u6,
+    max_height: u7,
 ) PiecePosSet {
     return root.movegen.allPlacementsRaw(
         PiecePosSet,
@@ -160,7 +160,7 @@ pub fn orderMoves(
     playfield: BoardMask,
     piece: PieceKind,
     moves: PiecePosSet,
-    max_height: u6,
+    max_height: u7,
     comptime validFn: fn ([]const u16) bool,
     nn: NN,
     comptime scoreFn: fn ([]const u16, NN) f32,
@@ -171,13 +171,13 @@ pub fn orderMoves(
         board.place(placement.piece.mask(), placement.pos);
         const cleared = board.clearLines(placement.pos.y);
         const new_height = max_height - cleared;
-        if (!validFn(board.rows[0..new_height])) {
+        if (!validFn(board.rows[0..@min(BoardMask.HEIGHT, new_height)])) {
             continue;
         }
 
         queue.add(.{
             .placement = placement,
-            .score = scoreFn(board.rows[0..new_height], nn),
+            .score = scoreFn(board.rows[0..@min(BoardMask.HEIGHT, new_height)], nn),
         }) catch unreachable;
     }
 }
