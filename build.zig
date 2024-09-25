@@ -52,9 +52,12 @@ pub fn build(b: *Build) void {
         .install_dir = .bin,
         .install_subdir = "NNs",
     });
-
     root_module.addAnonymousImport("nn_4l_json", .{
-        .root_source_file = b.path("NNs/Fast3-mini.json"),
+        .root_source_file = minifyJson(
+            b,
+            b.path("NNs/Fast3.json"),
+            "nn_4l.json",
+        ),
     });
 
     buildExe(b, target, optimize, root_module, args_module);
@@ -62,6 +65,25 @@ pub fn build(b: *Build) void {
     buildTests(b, root_module);
     buildBench(b, target, root_module);
     buildTrain(b, target, optimize, root_module);
+}
+
+fn minifyJson(
+    b: *Build,
+    path: Build.LazyPath,
+    name: []const u8,
+) Build.LazyPath {
+    const minify_exe = b.addExecutable(.{
+        .name = "minify-json",
+        .root_source_file = b.path("src/build/minify-json.zig"),
+        .target = b.resolveTargetQuery(
+            Build.parseTargetQuery(.{}) catch unreachable,
+        ),
+    });
+
+    const minify_cmd = b.addRunArtifact(minify_exe);
+    minify_cmd.expectExitCode(0);
+    minify_cmd.addFileArg(path);
+    return minify_cmd.addOutputFileArg(name);
 }
 
 fn buildExe(

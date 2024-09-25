@@ -19,9 +19,9 @@ pub fn main() !void {
     // Max: 707.394ms
     try pcBenchmark(4, "NNs/Fast3.json", true);
 
-    // Mean: 13.558ms ± 25.225ms
-    // Max: 157.091ms
-    try pcBenchmark(6, "NNs/6-line-baseline.json", false);
+    // Mean: 16.603ms ± 37.504ms
+    // Max: 385.44ms
+    try pcBenchmark(6, "NNs/Fast3.json", false);
 
     // Mean: 47ns
     getFeaturesBenchmark();
