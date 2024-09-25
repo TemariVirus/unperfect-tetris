@@ -127,7 +127,7 @@ zig build solve
 Finds all perfect clear solutions of a given height from an empty playfield,
 and saves the solutions to disk in [`.pc`](#pc-file-format) format.
 
-Settings may be adjusted in the top-level declarations in `src/solve.zig`. If
+Settings may be adjusted in the top-level declarations in `src/scripts/solve.zig`. If
 the height is 4 or less, the `-Dsmall` option may be passed to the compiler for
 a potential speedup.
 
@@ -159,7 +159,7 @@ zig build train
 Trains a population of neural networks to solve perfect clears as fast as
 possible. The population is saved at the end of every generation.
 
-Settings may be adjusted in the top-level declarations in `src/train.zig`. If
+Settings may be adjusted in the top-level declarations in `src/scripts/train.zig`. If
 the height is 4 or less, the `-Dsmall` option may be passed to the compiler for
 a potential speedup.
 

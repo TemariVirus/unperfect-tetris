@@ -13,6 +13,8 @@ const engine = @import("engine");
 const GameState = engine.GameState(SevenBag);
 const SevenBag = engine.bags.SevenBag;
 
+const PeriodicTrigger = @import("nterm").PeriodicTrigger;
+
 const zmai = @import("zmai");
 const neat = zmai.genetic.neat;
 const Trainer = neat.Trainer;
@@ -20,8 +22,6 @@ const Trainer = neat.Trainer;
 const root = @import("perfect-tetris");
 const NN = root.NN;
 const pc = root.pc;
-
-const PeriodicTrigger = @import("PeriodicTrigger.zig");
 
 // Height of perfect clears to find
 const HEIGHT = 4;
@@ -397,7 +397,7 @@ fn getFitness(allocator: Allocator, seed: u64, nn: NN) !f64 {
             placements,
             null,
         ) catch |e| {
-            if (e != pc.FindPcError.SolutionTooLong) {
+            if (e != root.FindPcError.SolutionTooLong) {
                 return e;
             } else {
                 continue;

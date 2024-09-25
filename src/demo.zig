@@ -11,13 +11,12 @@ const SevenBag = engine.bags.SevenBag;
 
 const nterm = @import("nterm");
 const Colors = nterm.Colors;
+const PeriodicTrigger = nterm.PeriodicTrigger;
 const View = nterm.View;
 
 const root = @import("perfect-tetris");
 const NN = root.NN;
 const Placement = root.Placement;
-
-const PeriodicTrigger = @import("PeriodicTrigger.zig");
 
 const FRAMERATE = 60;
 const FPS_TIMING_WINDOW = FRAMERATE * 2;
@@ -59,7 +58,6 @@ pub fn main(allocator: Allocator, args: DemoArgs) !void {
     try nterm.init(
         allocator,
         std.io.getStdOut(),
-        FRAMERATE * 2,
         Player.DISPLAY_W + 2,
         Player.DISPLAY_H,
         null,
@@ -100,13 +98,6 @@ pub fn main(allocator: Allocator, args: DemoArgs) !void {
     }, pcThread, .{ allocator, nn, player.state, &pc_queue });
     pc_thread.detach();
 
-    const fps_view = View{
-        .left = 1,
-        .top = 0,
-        .width = 15,
-        .height = 1,
-    };
-
     var render_timer = PeriodicTrigger.init(time.ns_per_s / FRAMERATE, true);
     var place_timer = PeriodicTrigger.init(time.ns_per_s / args.pps, false);
     while (true) {
@@ -115,15 +106,6 @@ pub fn main(allocator: Allocator, args: DemoArgs) !void {
         if (render_timer.trigger()) |dt| {
             triggered = true;
             player.tick(dt, 0, &.{});
-
-            fps_view.printAt(
-                0,
-                0,
-                Colors.WHITE,
-                null,
-                "{d:.2}FPS",
-                .{nterm.fps()},
-            );
             player.draw();
             nterm.render() catch |err| {
                 // Trying to render after the terminal has been closed results

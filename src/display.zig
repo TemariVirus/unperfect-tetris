@@ -48,7 +48,6 @@ pub fn main(allocator: Allocator, args: DisplayArgs, path: []const u8) !void {
     try nterm.init(
         allocator,
         io.getStdOut(),
-        1,
         0,
         0,
         null,

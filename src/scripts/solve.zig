@@ -15,7 +15,6 @@ const SevenBag = engine.bags.SevenBag;
 
 const root = @import("perfect-tetris");
 const SequenceIterator = root.next.SequenceIterator;
-const NN = root.NN;
 const pc = root.pc;
 const Placement = root.Placement;
 
@@ -455,7 +454,7 @@ fn solveThread(buf: *SolutionBuffer) !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const nn = try NN.load(allocator, "NNs/Fast3.json");
+    const nn = root.defaultNN();
     defer nn.deinit(allocator);
 
     while (try buf.nextChunk()) |tuple| {
@@ -471,7 +470,7 @@ fn solveThread(buf: *SolutionBuffer) !void {
                 HEIGHT,
                 &solutions[solved],
                 null,
-            ) catch |e| if (e == pc.FindPcError.SolutionTooLong) {
+            ) catch |e| if (e == root.FindPcError.SolutionTooLong) {
                 continue;
             } else {
                 return e;

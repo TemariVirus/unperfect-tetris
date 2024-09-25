@@ -138,7 +138,7 @@ fn buildSolve(
 ) void {
     const exe = b.addExecutable(.{
         .name = "solve",
-        .root_source_file = b.path("src/solve.zig"),
+        .root_source_file = b.path("src/scripts/solve.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -167,6 +167,10 @@ fn buildTests(b: *Build, root_module: *Build.Module) void {
         root_module.import_table.get("options").?,
     );
     lib_tests.root_module.addImport(
+        "nn_4l_json",
+        root_module.import_table.get("nn_4l_json").?,
+    );
+    lib_tests.root_module.addImport(
         "engine",
         root_module.import_table.get("engine").?,
     );
@@ -187,7 +191,7 @@ fn buildBench(
 ) void {
     const bench_exe = b.addExecutable(.{
         .name = "benchmarks",
-        .root_source_file = b.path("src/bench.zig"),
+        .root_source_file = b.path("src/scripts/bench.zig"),
         .target = target,
         .optimize = .ReleaseFast,
     });
@@ -214,7 +218,7 @@ fn buildTrain(
 ) void {
     const train_exe = b.addExecutable(.{
         .name = "nn-train",
-        .root_source_file = b.path("src/train.zig"),
+        .root_source_file = b.path("src/scripts/train.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -222,6 +226,10 @@ fn buildTrain(
     train_exe.root_module.addImport(
         "engine",
         root_module.import_table.get("engine").?,
+    );
+    train_exe.root_module.addImport(
+        "nterm",
+        root_module.import_table.get("nterm").?,
     );
     train_exe.root_module.addImport(
         "zmai",
