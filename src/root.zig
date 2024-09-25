@@ -9,6 +9,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const expect = std.testing.expect;
+const json = std.json;
 
 const engine = @import("engine");
 const BoardMask = engine.bit_masks.BoardMask;
@@ -20,8 +21,19 @@ const Position = engine.pieces.Position;
 
 const NNInner = @import("zmai").genetic.neat.NN;
 
-/// The maximum length of a next sequence in a `.pc` file.
-pub const PC_MAX_SEQ_LEN = 16;
+var default_nn: ?NN = null;
+var load_default_nn = std.once((struct {
+    var buffer: [1024]u8 = undefined;
+
+    pub fn load() void {
+        var fba = std.heap.FixedBufferAllocator.init(&buffer);
+        default_nn = loadNNFromStr(fba.allocator(), @embedFile("nn_4l_json"));
+    }
+}).load);
+pub fn defaultNN() NN {
+    load_default_nn.call();
+    return default_nn.?;
+}
 
 pub const Placement = struct {
     piece: Piece,
@@ -55,8 +67,10 @@ pub const NN = struct {
 };
 
 pub const PCSolution = struct {
-    pub const NextArray = std.BoundedArray(PieceKind, PC_MAX_SEQ_LEN);
-    pub const PlacementArray = std.BoundedArray(Placement, PC_MAX_SEQ_LEN - 1);
+    /// The maximum length of a next sequence in a `.pc` file.
+    pub const MAX_SEQ_LEN = 16;
+    pub const NextArray = std.BoundedArray(PieceKind, MAX_SEQ_LEN);
+    pub const PlacementArray = std.BoundedArray(Placement, MAX_SEQ_LEN - 1);
 
     next: NextArray = NextArray{},
     placements: PlacementArray = PlacementArray{},
@@ -74,7 +88,7 @@ pub const PCSolution = struct {
         const holds = try reader.readInt(u16, .little);
 
         var solution = PCSolution{};
-        while (solution.next.len < PC_MAX_SEQ_LEN) {
+        while (solution.next.len < MAX_SEQ_LEN) {
             const shift = 3 * @as(usize, solution.next.len);
             const p: u3 = @truncate(seq >> @intCast(shift));
             // 0b111 is the sentinel value for the end of the sequence
@@ -179,7 +193,7 @@ pub fn findPcAuto(
     comptime BagType: type,
     allocator: Allocator,
     game: GameState(BagType),
-    nn: NN,
+    nn: ?NN,
     min_height: u7,
     max_len: usize,
     save_hold: ?PieceKind,
@@ -197,7 +211,7 @@ pub fn findPcAuto(
             BagType,
             allocator,
             game,
-            nn,
+            nn orelse defaultNN(),
             @intCast(height),
             placements,
             save_hold,
@@ -213,13 +227,31 @@ pub fn findPcAuto(
         BagType,
         allocator,
         game,
-        nn,
+        nn orelse defaultNN(),
         @max(7, height),
         placements,
         save_hold,
     );
     assert(allocator.resize(placements, solution.len));
     return solution;
+}
+
+pub fn loadNNFromStr(allocator: Allocator, json_str: []const u8) NN {
+    const obj = json.parseFromSlice(
+        NNInner.NNJson,
+        allocator,
+        json_str,
+        .{ .ignore_unknown_fields = true },
+    ) catch unreachable;
+    defer obj.deinit();
+
+    var inputs_used: [NN.INPUT_COUNT]bool = undefined;
+    const _nn =
+        NNInner.fromJson(allocator, obj.value, &inputs_used) catch unreachable;
+    return NN{
+        .net = _nn,
+        .inputs_used = inputs_used,
+    };
 }
 
 test {

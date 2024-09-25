@@ -53,6 +53,10 @@ pub fn build(b: *Build) void {
         .install_subdir = "NNs",
     });
 
+    root_module.addAnonymousImport("nn_4l_json", .{
+        .root_source_file = b.path("NNs/Fast3-mini.json"),
+    });
+
     buildExe(b, target, optimize, root_module, args_module);
     buildSolve(b, target, optimize, root_module, install_NNs);
     buildTests(b, root_module);
@@ -87,10 +91,6 @@ fn buildExe(
         "zmai",
         root_module.import_table.get("zmai").?,
     );
-
-    exe.root_module.addAnonymousImport("nn_json", .{
-        .root_source_file = b.path("NNs/Fast3-mini.json"),
-    });
 
     if (optimize == .ReleaseFast) {
         exe.root_module.strip = true;

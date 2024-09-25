@@ -107,8 +107,11 @@ pub fn main() !void {
                 return;
             }
 
-            const nn = try getNnOrDefault(allocator, args.nn);
-            defer nn.deinit(allocator);
+            const nn = if (args.nn) |path|
+                try NN.load(allocator, path)
+            else
+                null;
+            defer if (nn) |_nn| _nn.deinit(allocator);
 
             for (exe_args.positionals) |fumen_str| {
                 try fumen.main(
@@ -173,26 +176,4 @@ pub fn enumValuesHelp(ArgsT: type, Enum: type) []const u8 {
     writer.writeByte(']') catch unreachable;
 
     return str.items;
-}
-
-pub fn getNnOrDefault(allocator: Allocator, nn_path: ?[]const u8) !NN {
-    if (nn_path) |path| {
-        return try NN.load(allocator, path);
-    }
-
-    // Use embedded neural network as default
-    const obj = try json.parseFromSlice(
-        NNInner.NNJson,
-        allocator,
-        @embedFile("nn_json"),
-        .{ .ignore_unknown_fields = true },
-    );
-    defer obj.deinit();
-
-    var inputs_used: [NN.INPUT_COUNT]bool = undefined;
-    const _nn = try NNInner.fromJson(allocator, obj.value, &inputs_used);
-    return NN{
-        .net = _nn,
-        .inputs_used = inputs_used,
-    };
 }

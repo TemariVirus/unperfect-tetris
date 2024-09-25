@@ -17,8 +17,7 @@ const View = nterm.View;
 
 const PCSolution = @import("perfect-tetris").PCSolution;
 
-// Set max sequence length to 16 to handle up to 6-line PCs.
-const MAX_SEQ_LEN = 16;
+const MAX_SEQ_LEN = PCSolution.MAX_SEQ_LEN;
 const INDEX_INTERVAL = 1 << 18;
 
 pub const DisplayArgs = struct {

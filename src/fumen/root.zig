@@ -142,7 +142,7 @@ pub fn main(
     allocator: Allocator,
     args: FumenArgs,
     fumen: []const u8,
-    nn: NN,
+    nn: ?NN,
     stdout: File,
 ) !void {
     const start_t = std.time.nanoTimestamp();

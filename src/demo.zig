@@ -1,6 +1,5 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
-const assert = std.debug.assert;
 const SolutionList = std.ArrayList([]Placement);
 const time = std.time;
 
@@ -16,10 +15,8 @@ const View = nterm.View;
 
 const root = @import("perfect-tetris");
 const NN = root.NN;
-const pc = root.pc;
 const Placement = root.Placement;
 
-const getNnOrDefault = @import("main.zig").getNnOrDefault;
 const PeriodicTrigger = @import("PeriodicTrigger.zig");
 
 const FRAMERATE = 60;
@@ -52,8 +49,11 @@ pub const DemoArgs = struct {
 };
 
 pub fn main(allocator: Allocator, args: DemoArgs) !void {
-    const nn = try getNnOrDefault(allocator, args.nn);
-    defer nn.deinit(allocator);
+    const nn = if (args.nn) |path|
+        try NN.load(allocator, path)
+    else
+        null;
+    defer if (nn) |_nn| _nn.deinit(allocator);
 
     // Add 2 to create a 1-wide empty boarder on the left and right.
     try nterm.init(
@@ -174,7 +174,7 @@ fn placePcPiece(
 
 fn pcThread(
     allocator: Allocator,
-    nn: NN,
+    nn: ?NN,
     state: GameState,
     queue: *SolutionList,
 ) !void {
