@@ -91,7 +91,7 @@ pub const Intermediate = struct {
     playfield: BoardMask,
     current: Piece,
     pos: Position,
-    do_o_rotation: bool,
+    do_o_rotations: bool,
     kicks: *const KickFn,
 
     /// Returns `true` if the move was successful. Otherwise, `false`.
@@ -141,7 +141,7 @@ pub const Intermediate = struct {
 
     /// Returns `true` if the piece was successfully rotated. Otherwise, `false`.
     fn tryRotate(self: *Intermediate, rotation: Rotation) bool {
-        if (self.current.kind == .o and !self.do_o_rotation) {
+        if (self.current.kind == .o and !self.do_o_rotations) {
             return false;
         }
 
@@ -176,7 +176,7 @@ pub const Intermediate = struct {
 /// `max_height`.
 pub fn allPlacements(
     playfield: BoardMask,
-    do_o_rotation: bool,
+    do_o_rotations: bool,
     kicks: *const KickFn,
     piece_kind: PieceKind,
     max_height: u6,
@@ -188,7 +188,7 @@ pub fn allPlacements(
         BoardMask,
         Intermediate,
         playfield,
-        do_o_rotation,
+        do_o_rotations,
         kicks,
         piece_kind,
         max_height,
@@ -202,7 +202,7 @@ pub fn allPlacementsRaw(
     comptime TBoardMask: type,
     comptime TIntermediate: type,
     playfield: TBoardMask,
-    do_o_rotation: bool,
+    do_o_rotations: bool,
     kicks: *const KickFn,
     piece_kind: PieceKind,
     max_height: u7,
@@ -222,7 +222,7 @@ pub fn allPlacementsRaw(
             .y = @as(i8, max_height) + piece.minY(),
         };
 
-        if (!do_o_rotation and piece_kind == .o and facing != .up) {
+        if (!do_o_rotations and piece_kind == .o and facing != .up) {
             continue;
         }
         stack.append(TPiecePosition.pack(piece, pos)) catch unreachable;
@@ -242,7 +242,7 @@ pub fn allPlacementsRaw(
                 .playfield = playfield,
                 .current = piece,
                 .pos = pos,
-                .do_o_rotation = do_o_rotation,
+                .do_o_rotations = do_o_rotations,
                 .kicks = kicks,
             };
 

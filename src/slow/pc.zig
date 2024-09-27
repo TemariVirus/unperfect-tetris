@@ -113,7 +113,7 @@ fn findPcInner(
     pieces: []PieceKind,
     queues: []movegen.MoveQueue,
     placements: []Placement,
-    do_o_rotation: bool,
+    do_o_rotations: bool,
     kick_fn: *const KickFn,
     cache: *NodeSet,
     nn: NN,
@@ -152,7 +152,7 @@ fn findPcInner(
     queues[0].items.len = 0;
     const m1 = movegen.allPlacements(
         playfield,
-        do_o_rotation,
+        do_o_rotations,
         kick_fn,
         pieces[0],
         max_height,
@@ -171,7 +171,7 @@ fn findPcInner(
     if (can_hold and pieces.len > 1 and pieces[0] != pieces[1]) {
         const m2 = movegen.allPlacements(
             playfield,
-            do_o_rotation,
+            do_o_rotations,
             kick_fn,
             pieces[1],
             max_height,
@@ -207,7 +207,7 @@ fn findPcInner(
             pieces[1..],
             queues[1..],
             placements[1..],
-            do_o_rotation,
+            do_o_rotations,
             kick_fn,
             cache,
             nn,

@@ -11,6 +11,12 @@ pub fn build(b: *Build) void {
         .optimize = optimize,
     }).module("engine");
 
+    // vaxis dependency
+    const vaxis_module = b.dependency("vaxis", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("vaxis");
+
     // zmai dependency
     const zmai_module = b.dependency("zmai", .{
         .target = target,
@@ -32,6 +38,7 @@ pub fn build(b: *Build) void {
                 .name = "nterm",
                 .module = engine_module.import_table.get("nterm").?,
             },
+            .{ .name = "vaxis", .module = vaxis_module },
             .{ .name = "zmai", .module = zmai_module },
         },
     });
@@ -104,6 +111,10 @@ fn buildExe(
     exe.root_module.addImport(
         "engine",
         root_module.import_table.get("engine").?,
+    );
+    exe.root_module.addImport(
+        "vaxis",
+        root_module.import_table.get("vaxis").?,
     );
     exe.root_module.addImport(
         "nterm",

@@ -1,13 +1,17 @@
 .{
     .name = "perfect-tetris",
-    .version = "1.0.2",
+    .version = "1.1.0",
     .dependencies = .{
         .engine = .{
-            .url = "https://github.com/TemariVirus/Budget-Tetris-Engine/archive/72fd8f5a1d1df7b86c07d27eb1f14c2c323c1ed5.tar.gz",
+            .url = "git+https://github.com/TemariVirus/Budget-Tetris-Engine#72fd8f5a1d1df7b86c07d27eb1f14c2c323c1ed5",
             .hash = "12205a85813e0509c0d60e15645d25183ee568378c7c63e7fc66ae9a6124796030d6",
         },
+        .vaxis = .{
+            .url = "git+https://github.com/rockorager/libvaxis#1961712c1f0cf46b235dd31418dc1b52442abbd5",
+            .hash = "12208cfdda4d5fdbc81b0c44b82e4d6dba2d4a86bff644a153e026fdfc80f8469133",
+        },
         .zmai = .{
-            .url = "https://github.com/TemariVirus/zmai/archive/fa4f6af39bb185555221346a6d3395cfb31258be.tar.gz",
+            .url = "git+https://github.com/TemariVirus/zmai#fa4f6af39bb185555221346a6d3395cfb31258be",
             .hash = "12205906277f0eaff4417d1cf18062e8e30331868f100a93684f1ef5708fd11d6c4b",
         },
         .@"zig-args" = .{
@@ -21,6 +25,5 @@
         "src",
         "NNs",
         "LICENSE",
-        "README.md",
     },
 }

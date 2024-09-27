@@ -6,19 +6,34 @@ const io = std.io;
 const SolutionIndex = std.ArrayListUnmanaged(u64);
 
 const engine = @import("engine");
-const Facing = engine.pieces.Facing;
 const Piece = engine.pieces.Piece;
 const PieceKind = engine.pieces.PieceKind;
 const Position = engine.pieces.Position;
 
-const nterm = @import("nterm");
-const Colors = nterm.Colors;
-const View = nterm.View;
+const vaxis = @import("vaxis");
+const BorderOptions = Window.BorderOptions;
+const Key = vaxis.Key;
+const Loop = vaxis.Loop(Event);
+const TextInput = vaxis.widgets.TextInput;
+const Tty = vaxis.Tty;
+const Window = vaxis.Window;
 
-const PCSolution = @import("perfect-tetris").PCSolution;
+const root = @import("perfect-tetris");
+const PCSolution = root.PCSolution;
+const Placement = root.Placement;
 
-const MAX_SEQ_LEN = PCSolution.MAX_SEQ_LEN;
-const INDEX_INTERVAL = 1 << 18;
+pub const panic = vaxis.panic_handler;
+pub const std_options: std.Options = .{
+    .log_scope_levels = &.{
+        .{ .scope = .vaxis, .level = .err },
+        .{ .scope = .vaxis_parser, .level = .err },
+    },
+};
+
+const INDEX_INTERVAL = 1 << 17;
+const BORDER_GLYPHS = BorderOptions.Glyphs{
+    .custom = .{ "╔", "═", "╗", "║", "╝", "╚" },
+};
 
 pub const DisplayArgs = struct {
     help: bool = false,
@@ -42,24 +57,41 @@ pub const DisplayArgs = struct {
     };
 };
 
+const Event = union(enum) {
+    key_press: Key,
+    solution_count: u64,
+    winsize: vaxis.Winsize,
+};
+
 pub fn main(allocator: Allocator, args: DisplayArgs, path: []const u8) !void {
     _ = args; // autofix
 
-    try nterm.init(
-        allocator,
-        io.getStdOut(),
-        0,
-        0,
-        null,
-        null,
-    );
-    defer nterm.deinit();
+    // Set up terminal and vaxis
+    var tty = try Tty.init();
+    defer tty.deinit();
+    var bf = tty.bufferedWriter();
+    const stdout = bf.writer().any();
 
+    var vx = try vaxis.init(allocator, .{});
+    defer vx.deinit(allocator, tty.anyWriter());
+    try vx.enterAltScreen(tty.anyWriter());
+    try vx.queryTerminal(tty.anyWriter(), 0);
+
+    // Vaxis event loop
+    var loop: Loop = .{
+        .tty = &tty,
+        .vaxis = &vx,
+    };
+    try loop.init();
+
+    try loop.start();
+    defer loop.stop();
+
+    // Open PC file and start indexing thread
     const pc_file = try std.fs.cwd().openFile(path, .{});
     defer pc_file.close();
     const reader = pc_file.reader();
 
-    var solution_count: ?u64 = null;
     const SOLUTION_MIN_SIZE = 8;
     var solution_index = try SolutionIndex.initCapacity(
         allocator,
@@ -68,108 +100,146 @@ pub fn main(allocator: Allocator, args: DisplayArgs, path: []const u8) !void {
     defer solution_index.deinit(allocator);
 
     solution_index.appendAssumeCapacity(0);
+    var stop_index_thread = false;
     const index_thread = try std.Thread.spawn(
         .{ .allocator = allocator },
         indexThread,
-        .{ path, &solution_count, &solution_index },
+        .{ &stop_index_thread, path, &solution_index, &loop },
     );
+    defer stop_index_thread = true;
     index_thread.detach();
 
-    var i: u64 = 0;
-    const stdin = io.getStdIn().reader();
-    while (try PCSolution.readOne(reader)) |s| {
-        const next_len = @as(usize, s.next.len);
-        try nterm.setCanvasSize(
-            (11 + 5) * 2 + 1,
-            @intCast(@max(22, next_len * 3 + 2)),
-        );
-        drawSequence(s.next.buffer[0..next_len]);
+    // Widgets
+    var text_input = TextInput.init(allocator, &vx.unicode);
+    defer text_input.deinit();
 
-        const matrix_box = View{
-            .left = 0,
-            .top = nterm.canvasSize().height - 22,
-            .width = 10 * 2 + 2,
-            .height = 22,
-        };
-        matrix_box.drawBox(
-            0,
-            0,
-            matrix_box.height,
-            matrix_box.width,
-            Colors.WHITE,
-            null,
-        );
+    // Run main loop
+    var pos: u64 = 0;
+    var solution_count: u64 = 0;
+    var sol = (try PCSolution.readOne(reader)) orelse return;
+    while (true) {
+        const event = loop.nextEvent();
+        switch (event) {
+            .key_press => |key| blk: {
+                // Exit on ctrl+c or ctrl+d
+                if (key.matchExact('c', .{ .ctrl = true }) or
+                    key.matchExact('d', .{ .ctrl = true }))
+                {
+                    return;
+                }
 
-        var row_occupancy = [_]u8{0} ** 20;
-        const matrix_view = matrix_box.sub(
-            1,
-            1,
-            matrix_box.width - 2,
-            matrix_box.height - 2,
-        );
-        for (s.placements.buffer[0..s.placements.len]) |p| {
-            drawMatrixPiece(matrix_view, &row_occupancy, p.piece, p.pos);
+                if (!key.matches(Key.enter, .{})) {
+                    try text_input.update(.{ .key_press = key });
+                    break :blk;
+                }
+
+                // Process text in input when enter is pressed
+                const text = try text_input.buf.toOwnedSlice();
+                defer allocator.free(text);
+
+                const trimmed = std.mem.trim(u8, text, " ");
+                if (std.fmt.parseInt(u64, trimmed, 10)) |n| {
+                    if (try seekToSolution(pc_file, n -| 1, solution_index)) {
+                        sol = (try PCSolution.readOne(reader)) orelse return;
+                        pos = n -| 1;
+                    }
+                } else |_| if (text.len == 0) {
+                    // Go to next solution if the input is empty.
+                    sol = (try PCSolution.readOne(reader)) orelse return;
+                    pos += 1;
+                }
+            },
+            .solution_count => |count| solution_count = count,
+            .winsize => |ws| try vx.resize(allocator, stdout, ws),
         }
 
-        printFooter(i, solution_count);
-        nterm.render() catch |err| {
-            // Trying to render after the terminal has been closed results
-            // in an error, in which case stop the program gracefully.
-            if (err == error.NotInitialized) {
-                return;
-            }
-            return err;
-        };
+        const win = vx.window();
+        win.clear();
 
-        // Read until enter is pressed
-        const bytes = try stdin.readUntilDelimiterAlloc(
-            allocator,
-            '\n',
-            std.math.maxInt(usize),
-        );
-        defer allocator.free(bytes);
+        const matrix_width = 22;
+        const matrix_height = 22;
+        const footer_height = 1;
+        const next_len: usize = sol.next.len;
+        const next_width = 10;
+        const next_height = next_len * 3 + 2;
 
-        if (std.fmt.parseInt(u64, bytes[0 .. bytes.len - 1], 10)) |n| {
-            if (n == 0) {
-                i = 0;
-                try pc_file.seekTo(0);
-            } else if (try seekToSolution(pc_file, n - 1, solution_index)) {
-                i = n - 1;
-            } else {
-                // Go back to start of current solution
-                try pc_file.seekBy(-@as(i64, @intCast(next_len)) - 7);
-            }
-        } else |_| {
-            // Only go to next solution if the input is empty.
-            if (bytes.len == 1) {
-                i += 1;
-            } else {
-                // Go back to start of current solution
-                try pc_file.seekBy(-@as(i64, @intCast(next_len)) - 7);
-            }
-        }
-    }
-}
+        const main_width = matrix_width + 1 + next_width;
+        const main_height = @max(matrix_height, next_height) + footer_height;
+        const main_win = win.child(.{
+            .x_off = (win.width -| main_width) / 2,
+            .y_off = (win.height -| main_height) / 2,
+            .width = .{ .limit = main_width },
+            .height = .{ .limit = main_height },
+            .border = .{},
+        });
 
-fn printFooter(pos: u64, end: ?u64) void {
-    if (end) |e| {
-        nterm.view().printAt(
-            0,
-            nterm.canvasSize().height - 1,
-            Colors.WHITE,
-            null,
+        const next_win = main_win.child(.{
+            .x_off = matrix_width + 1,
+            .y_off = 0,
+            .width = .{ .limit = next_width },
+            .height = .{ .limit = next_height },
+            .border = .{
+                .where = .{ .other = .{
+                    .left = true,
+                    .top = true,
+                    .right = true,
+                    .bottom = main_win.height >= next_height,
+                } },
+                .glyphs = BORDER_GLYPHS,
+            },
+        });
+        drawSequence(next_win, sol.next.buffer[0..next_len]);
+
+        const matrix_win = main_win.child(.{
+            .x_off = 0,
+            .y_off = next_height -| matrix_height,
+            .width = .{ .limit = matrix_width },
+            .height = .{ .limit = matrix_height },
+            .border = .{
+                .where = .{
+                    .other = .{
+                        .left = true,
+                        .top = true,
+                        .right = true,
+                        .bottom = main_win.height >= @max(next_height, matrix_height),
+                    },
+                },
+                .glyphs = BORDER_GLYPHS,
+            },
+        });
+        drawMatrix(matrix_win, sol.placements.buffer[0..sol.placements.len]);
+
+        const footer_win = main_win.child(.{
+            .x_off = 0,
+            .y_off = main_height - 2,
+            .width = .expand,
+            .height = .{ .limit = 2 },
+        });
+
+        var buf: [53]u8 = undefined;
+        const text = std.fmt.bufPrint(
+            &buf,
             "Solution {} of {}",
-            .{ pos + 1, e },
+            .{ pos + 1, solution_count },
+        ) catch unreachable;
+        _ = try footer_win.printSegment(
+            .{ .text = text },
+            .{ .row_offset = 0, .wrap = .none },
         );
-    } else {
-        nterm.view().printAt(
-            0,
-            nterm.canvasSize().height - 1,
-            Colors.WHITE,
-            null,
-            "Solution {} of ?",
-            .{pos + 1},
+        _ = try footer_win.printSegment(
+            .{ .text = "Skip to: " },
+            .{ .row_offset = 1 },
         );
+
+        text_input.draw(footer_win.child(.{
+            .x_off = 9,
+            .y_off = 1,
+            .width = .expand,
+            .height = .{ .limit = 1 },
+        }));
+
+        try vx.render(stdout);
+        try bf.flush();
     }
 }
 
@@ -183,9 +253,10 @@ fn nextSolution(reader: anytype) u64 {
 // This greatly improves the performance of seeking to a solution.
 // Due to the time needed to index the file, this is done in a separate thread.
 fn indexThread(
+    should_stop: *const bool,
     path: []const u8,
-    solution_count: *?u64,
     solution_index: *SolutionIndex,
+    loop: *Loop,
 ) !void {
     const pc_file = try std.fs.cwd().openFile(path, .{});
     defer pc_file.close();
@@ -194,7 +265,7 @@ fn indexThread(
 
     var pos: u64 = 0;
     var count: u64 = 0;
-    while (true) : (count += 1) {
+    while (!should_stop.*) : (count += 1) {
         const len = nextSolution(reader);
         if (len == 0) {
             break;
@@ -202,12 +273,13 @@ fn indexThread(
 
         if (count != 0 and count % INDEX_INTERVAL == 0) {
             solution_index.appendAssumeCapacity(pos);
+            loop.postEvent(.{ .solution_count = count });
         }
 
         pos += len;
     }
 
-    solution_count.* = count;
+    loop.postEvent(.{ .solution_count = count });
 }
 
 fn seekToSolution(file: File, n: u64, solution_index: SolutionIndex) !bool {
@@ -230,7 +302,7 @@ fn seekToSolution(file: File, n: u64, solution_index: SolutionIndex) !bool {
         pos += len;
     }
 
-    // Don't seek if we just passed the last solution (i.e., n == solution count)
+    // Don't seek if we just passed the end of the file
     if (nextSolution(reader) == 0) {
         try file.seekTo(old_pos);
         return false;
@@ -240,7 +312,8 @@ fn seekToSolution(file: File, n: u64, solution_index: SolutionIndex) !bool {
     return true;
 }
 
-/// Get the positions of the minos of a piece relative to the bottom left corner.
+/// Get the positions of the minos of a piece relative to the bottom left
+/// corner.
 fn getMinos(piece: Piece) [4]Position {
     const mask = piece.mask().rows;
     var minos: [4]Position = undefined;
@@ -261,52 +334,36 @@ fn getMinos(piece: Piece) [4]Position {
     return minos;
 }
 
-fn drawSequence(pieces: []const PieceKind) void {
-    assert(pieces.len <= MAX_SEQ_LEN);
-
-    const WIDTH = 2 * 4 + 2;
-    const box_view = View{
-        .left = nterm.canvasSize().width - WIDTH,
-        .top = 0,
-        .width = WIDTH,
-        .height = @intCast(pieces.len * 3 + 2),
-    };
-    box_view.drawBox(
-        0,
-        0,
-        box_view.width,
-        box_view.height,
-        Colors.WHITE,
-        null,
-    );
-
-    const box = box_view.sub(1, 1, box_view.width - 2, box_view.height - 2);
-    for (pieces, 0..) |p, i| {
-        const piece = Piece{ .facing = .up, .kind = p };
-        drawPiece(box, piece, 0, @intCast(i * 3));
-    }
-}
-
-fn drawPiece(view: View, piece: Piece, x: i8, y: i8) void {
+fn drawPiece(win: Window, piece: Piece, x: i8, y: i8) void {
     const minos = getMinos(piece);
     const color = piece.kind.color();
     for (minos) |mino| {
         const mino_x = x + mino.x;
         // The y coordinate is flipped when converting to nterm coordinates.
         const mino_y = y + (3 - mino.y);
-        _ = view.writeText(
-            @intCast(mino_x * 2),
-            @intCast(mino_y),
-            color,
-            color,
-            "  ",
-        );
+        _ = try win.printSegment(.{
+            .text = "  ",
+            .style = .{
+                .fg = .{ .index = color },
+                .bg = .{ .index = color },
+            },
+        }, .{
+            .col_offset = @intCast(mino_x * 2),
+            .row_offset = @intCast(mino_y),
+        });
+    }
+}
+
+fn drawSequence(win: Window, pieces: []const PieceKind) void {
+    for (pieces, 0..) |p, i| {
+        const piece = Piece{ .facing = .up, .kind = p };
+        drawPiece(win, piece, 0, @intCast(i * 3));
     }
 }
 
 /// Draw a piece in the matrix view, and update the row occupancy.
 fn drawMatrixPiece(
-    view: View,
+    win: Window,
     row_occupancy: []u8,
     piece: Piece,
     pos: Position,
@@ -331,14 +388,24 @@ fn drawMatrixPiece(
         const mino_x = pos.x + mino.x;
         // The y coordinate is flipped when converting to nterm coordinates.
         const mino_y = 19 - pos.y - mino.y - cleared;
-        _ = view.writeText(
-            @intCast(mino_x * 2),
-            @intCast(mino_y),
-            color,
-            color,
-            "  ",
-        );
+        _ = try win.printSegment(.{
+            .text = "  ",
+            .style = .{
+                .fg = .{ .index = color },
+                .bg = .{ .index = color },
+            },
+        }, .{
+            .col_offset = @intCast(mino_x * 2),
+            .row_offset = @intCast(mino_y),
+        });
 
         row_occupancy[@intCast(19 - mino_y)] += 1;
+    }
+}
+
+fn drawMatrix(win: Window, placements: []const Placement) void {
+    var row_occupancy = [_]u8{0} ** 20;
+    for (placements) |p| {
+        drawMatrixPiece(win, &row_occupancy, p.piece, p.pos);
     }
 }

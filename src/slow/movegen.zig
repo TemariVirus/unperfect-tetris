@@ -47,7 +47,7 @@ const Intermediate = struct {
     playfield: BoardMask,
     current: Piece,
     pos: Position,
-    do_o_rotation: bool,
+    do_o_rotations: bool,
     kicks: *const KickFn,
 
     /// Returns `true` if the move was successful. Otherwise, `false`.
@@ -99,7 +99,7 @@ const Intermediate = struct {
     /// Returns `true` if the piece was successfully rotated. Otherwise,
     /// `false`.
     fn tryRotate(self: *Intermediate, rotation: Rotation) bool {
-        if (self.current.kind == .o and !self.do_o_rotation) {
+        if (self.current.kind == .o and !self.do_o_rotations) {
             return false;
         }
 
@@ -134,7 +134,7 @@ const Intermediate = struct {
 /// `max_height`.
 pub fn allPlacements(
     playfield: BoardMask,
-    do_o_rotation: bool,
+    do_o_rotations: bool,
     kicks: *const KickFn,
     piece_kind: PieceKind,
     max_height: u7,
@@ -146,7 +146,7 @@ pub fn allPlacements(
         BoardMask,
         Intermediate,
         playfield,
-        do_o_rotation,
+        do_o_rotations,
         kicks,
         piece_kind,
         max_height,

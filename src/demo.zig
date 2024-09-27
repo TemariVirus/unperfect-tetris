@@ -74,18 +74,17 @@ pub fn main(allocator: Allocator, args: DemoArgs) !void {
         },
         .target_mode = .none,
     };
-    const player_view = View{
-        .left = 1,
-        .top = 0,
-        .width = Player.DISPLAY_W,
-        .height = Player.DISPLAY_H,
-    };
     var player = Player.init(
         "PC Solver",
         SevenBag.init(0),
         kicks.srsPlus,
         settings,
-        player_view,
+        .{
+            .left = 1,
+            .top = 0,
+            .width = Player.DISPLAY_W,
+            .height = Player.DISPLAY_H,
+        },
         playSfxDummy,
     );
 
