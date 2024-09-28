@@ -41,19 +41,13 @@ pub const DemoArgs = struct {
         .full_text = "Demostrates the perfect clear solver's speed with a tetris playing bot.",
         .option_docs = .{
             .help = "Print this help message.",
-            .nn = "The path to the neural network to use for the bot. If not provided, a default built-in network will be used.",
+            .nn = "The path to the neural network to use for the solver. The path may be absolute, relative to the current working directory, or relative to the executable's directory. If not provided, a default built-in NN will be used.",
             .pps = std.fmt.comptimePrint("The target pieces per second of the bot. (default: {})", .{(DemoArgs{}).pps}),
         },
     };
 };
 
-pub fn main(allocator: Allocator, args: DemoArgs) !void {
-    const nn = if (args.nn) |path|
-        try NN.load(allocator, path)
-    else
-        null;
-    defer if (nn) |_nn| _nn.deinit(allocator);
-
+pub fn main(allocator: Allocator, args: DemoArgs, nn: ?NN) !void {
     // Add 2 to create a 1-wide empty boarder on the left and right.
     try nterm.init(
         allocator,

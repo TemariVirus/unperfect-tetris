@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const AnyWriter = std.io.AnyWriter;
 const assert = std.debug.assert;
 const fs = std.fs;
 const Mutex = Thread.Mutex;
@@ -230,7 +231,7 @@ const SolutionBuffer = struct {
         // Seek to end to append to file
         try pc_file.seekFromEnd(0);
         var buf_writer = std.io.bufferedWriter(pc_file.writer());
-        const pc_writer = buf_writer.writer();
+        const pc_writer = buf_writer.writer().any();
 
         var wrote = false;
         // A negative length indicates that the chunk is not done yet
@@ -271,7 +272,7 @@ const SolutionBuffer = struct {
 
     fn saveAppend(
         self: *SolutionBuffer,
-        pc_writer: anytype,
+        pc_writer: AnyWriter,
         len: usize,
     ) !void {
         assert(NEXT_LEN <= 16);

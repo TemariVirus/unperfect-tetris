@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const AnyReader = std.io.AnyReader;
 const assert = std.debug.assert;
 const File = std.fs.File;
 const io = std.io;
@@ -90,7 +91,7 @@ pub fn main(allocator: Allocator, args: DisplayArgs, path: []const u8) !void {
     // Open PC file and start indexing thread
     const pc_file = try std.fs.cwd().openFile(path, .{});
     defer pc_file.close();
-    const reader = pc_file.reader();
+    const reader = pc_file.reader().any();
 
     const SOLUTION_MIN_SIZE = 8;
     var solution_index = try SolutionIndex.initCapacity(
@@ -243,7 +244,7 @@ pub fn main(allocator: Allocator, args: DisplayArgs, path: []const u8) !void {
     }
 }
 
-fn nextSolution(reader: anytype) u64 {
+fn nextSolution(reader: AnyReader) u64 {
     const solution = (PCSolution.readOne(reader) catch return 0) orelse
         return 0;
     return 8 + @as(u64, solution.next.len) - 1;
@@ -261,7 +262,7 @@ fn indexThread(
     const pc_file = try std.fs.cwd().openFile(path, .{});
     defer pc_file.close();
     var bf = io.bufferedReader(pc_file.reader());
-    const reader = bf.reader();
+    const reader = bf.reader().any();
 
     var pos: u64 = 0;
     var count: u64 = 0;
@@ -291,7 +292,7 @@ fn seekToSolution(file: File, n: u64, solution_index: SolutionIndex) !bool {
     try file.seekTo(pos);
 
     var bf = io.bufferedReader(file.reader());
-    const reader = bf.reader();
+    const reader = bf.reader().any();
 
     for (index * INDEX_INTERVAL..n) |_| {
         const len = nextSolution(reader);

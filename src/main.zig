@@ -87,11 +87,14 @@ pub fn main() !void {
                 return;
             }
 
-            if (args.pps == 0) {
+            if (args.pps <= 0) {
                 try stderr.print("PPS option must be greater than 0\n", .{});
                 return;
             }
-            try demo.main(allocator, args);
+
+            const nn = try loadNN(allocator, args.nn);
+            defer if (nn) |_nn| _nn.deinit(allocator);
+            try demo.main(allocator, args, nn);
         },
         .display => |args| {
             if (exe_args.options.help or exe_args.positionals.len == 0) {
@@ -107,21 +110,21 @@ pub fn main() !void {
                 return;
             }
 
-            const nn = if (args.nn) |path|
-                try NN.load(allocator, path)
-            else
-                null;
+            const nn = try loadNN(allocator, args.nn);
             defer if (nn) |_nn| _nn.deinit(allocator);
 
+            var bf = std.io.bufferedWriter(std.io.getStdOut().writer());
+            const writer = bf.writer().any();
             for (exe_args.positionals) |fumen_str| {
                 try fumen.main(
                     allocator,
                     args,
                     fumen_str,
                     nn,
-                    std.io.getStdOut(),
+                    writer,
                 );
             }
+            try bf.flush();
         },
         .validate => |args| {
             if (exe_args.options.help or exe_args.positionals.len == 0) {
@@ -176,4 +179,62 @@ pub fn enumValuesHelp(ArgsT: type, Enum: type) []const u8 {
     writer.writeByte(']') catch unreachable;
 
     return str.items;
+}
+
+/// Returns the first path that exists, relative to different locations in the
+/// following order:
+///
+/// - Absolute path (no allocation)
+/// - The current working directory (no allocation)
+/// - The directory containing the executable
+///
+/// If no match is found, returns `AccessError.FileNotFound`.
+pub fn resolvePath(allocator: Allocator, path: []const u8) ![]const u8 {
+    const AccessError = std.fs.Dir.AccessError;
+
+    // Absolute path
+    if (std.fs.path.isAbsolute(path)) {
+        try std.fs.accessAbsolute(path, .{});
+        return path;
+    }
+
+    // Current working directory
+    if (std.fs.cwd().access(path, .{})) |_| {
+        return path;
+    } else |e| {
+        if (e != AccessError.FileNotFound) {
+            return e;
+        }
+    }
+
+    // Relative to executable
+    const exe_path = try std.fs.selfExeDirPathAlloc(allocator);
+    defer allocator.free(exe_path);
+
+    const exe_rel_path = try std.fs.path.join(allocator, &.{
+        exe_path,
+        path,
+    });
+    if (std.fs.accessAbsolute(exe_rel_path, .{})) |_| {
+        return exe_rel_path;
+    } else |e| {
+        allocator.free(exe_rel_path);
+        if (e != AccessError.FileNotFound) {
+            return e;
+        }
+    }
+
+    return AccessError.FileNotFound;
+}
+
+pub fn loadNN(allocator: Allocator, path: ?[]const u8) !?NN {
+    if (path) |p| {
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+
+        const nn_path = try resolvePath(arena.allocator(), p);
+        return try NN.load(allocator, nn_path);
+    } else {
+        return null;
+    }
 }

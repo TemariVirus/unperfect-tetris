@@ -19,14 +19,16 @@ Run `pc COMMAND --help` for command-specific help.
 pc demo [options]
 ```
 
-Demostrates the perfect clear solver's speed with a tetris playing bot.
+Demostrates the perfect clear solver's speed with a tetris playing bot. The
+solver runs on a single thread in this demo.
 
 #### Options
 
 `-h`, `--help` Print the help message.
 
-`-n`, `--nn` The path to the neural network to use for the bot. If not
-provided, a default built-in network will be used.
+`-n`, `--nn` The path to the neural network to use for the solver. The path may
+be absolute, relative to the current working directory, or relative to the
+executable's directory. If not provided, a default built-in NN will be used.
 
 `-p`, `--pps` The target pieces per second of the bot. (default: 10)
 
@@ -78,8 +80,9 @@ variant has 180 rotations but no 180 kicks. Supported Values:
 
 `-m`, `--min-height` Overrides the minimum height of the PC to find.
 
-`-n`, `--nn` The path to the neural network to use for the bot. If not
-provided, a default built-in network will be used.
+`-n`, `--nn` The path to the neural network to use for the solver. The path may
+be absolute, relative to the current working directory, or relative to the
+executable's directory. If not provided, a default built-in NN will be used.
 
 `-s`, `--save` The piece type to save in the hold slot by the end of the
 perfect clear. If not specified, any piece may go into the hold slot. Supported

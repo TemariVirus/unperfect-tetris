@@ -7,6 +7,7 @@ pub const pc_slow = @import("slow/pc.zig");
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const AnyReader = std.io.AnyReader;
 const assert = std.debug.assert;
 const expect = std.testing.expect;
 const json = std.json;
@@ -78,7 +79,7 @@ pub const PCSolution = struct {
     /// Reads the next perfect clear solution from the reader, assuming the
     /// reader is reading a `.pc` file. If the reader is at the end of the
     /// file, this function returns `null`.
-    pub fn readOne(reader: anytype) !?PCSolution {
+    pub fn readOne(reader: AnyReader) !?PCSolution {
         const seq = reader.readInt(u48, .little) catch |e| {
             if (e == error.EndOfStream) {
                 return null;

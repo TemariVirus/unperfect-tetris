@@ -44,9 +44,9 @@ pub fn main(args: ValidateArgs, path: []const u8) !void {
     var solution_count: u64 = 0;
     var buf_reader = std.io.bufferedReader(file.reader());
     const reader = buf_reader.reader();
-    while (try PCSolution.readOne(reader)) |solution| {
+    while (try PCSolution.readOne(reader.any())) |solution| {
         if (solution.next.len == 0) {
-            try printValidationError(file, reader, solution_count);
+            try printValidationError(file, buf_reader, solution_count);
             return;
         }
 
@@ -58,7 +58,7 @@ pub fn main(args: ValidateArgs, path: []const u8) !void {
             const info = state.lockCurrent(-1);
             // Last move must be a PC
             if (i == solution.placements.len - 1 and !info.pc) {
-                try printValidationError(file, reader, solution_count);
+                try printValidationError(file, buf_reader, solution_count);
                 return;
             }
         }
@@ -74,12 +74,12 @@ pub fn main(args: ValidateArgs, path: []const u8) !void {
 
 fn printValidationError(
     file: std.fs.File,
-    reader: anytype,
+    buf_reader: anytype,
     solution_count: u64,
 ) !void {
     const bytes = try file.getPos() -
-        @as(u64, @intCast(reader.context.end)) +
-        @as(u64, @intCast(reader.context.start));
+        @as(u64, @intCast(buf_reader.end)) +
+        @as(u64, @intCast(buf_reader.start));
     try std.io.getStdOut().writer().print(
         "Error at solution {} (byte {})\n",
         .{ solution_count, bytes },

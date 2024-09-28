@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = mem.Allocator;
+const AnyWriter = std.io.AnyWriter;
 const assert = std.debug.assert;
 const mem = std.mem;
 const unicode = std.unicode;
@@ -226,7 +227,7 @@ const QuizWriter = struct {
     buf: [4]u8 = undefined,
     pos: usize = 0,
 
-    fn writeRaw(self: *QuizWriter, writer: anytype, char: u8) !void {
+    fn writeRaw(self: *QuizWriter, writer: AnyWriter, char: u8) !void {
         assert(std.mem.indexOfScalar(u8, caption_decode, char) != null);
         if (self.pos == 4) {
             var v: u32 = 0;
@@ -242,7 +243,7 @@ const QuizWriter = struct {
         self.pos += 1;
     }
 
-    pub fn write(self: *QuizWriter, writer: anytype, char: u8) !void {
+    pub fn write(self: *QuizWriter, writer: AnyWriter, char: u8) !void {
         // Assumes char is part of a quiz
         assert(std.mem.indexOfScalar(u8, "#Q=[]()IOTLJSZ", char) != null);
 
@@ -260,7 +261,7 @@ const QuizWriter = struct {
 
     pub fn writeAll(
         self: *QuizWriter,
-        writer: anytype,
+        writer: AnyWriter,
         char: []const u8,
     ) !void {
         for (char) |c| {
@@ -268,7 +269,7 @@ const QuizWriter = struct {
         }
     }
 
-    pub fn flush(self: *QuizWriter, writer: anytype) !void {
+    pub fn flush(self: *QuizWriter, writer: AnyWriter) !void {
         if (self.pos == 0) {
             return;
         }
@@ -303,7 +304,7 @@ pub fn outputFumen(
     args: FumenArgs,
     parsed: ParsedFumen,
     solution: []const Placement,
-    writer: anytype,
+    writer: AnyWriter,
 ) !void {
     // Initialise fumen
     const input = parsed.reader.data;
@@ -539,7 +540,7 @@ fn readPieceAndFlags(self: *FumenReader) FumenError!struct {
 }
 
 fn writePieceAndFlags(
-    writer: anytype,
+    writer: AnyWriter,
     p: Placement,
     has_caption: bool,
     color: bool,
@@ -706,7 +707,7 @@ fn pieceKindStr(piece: PieceKind) u8 {
 }
 
 fn writeQuiz(
-    writer: anytype,
+    writer: AnyWriter,
     hold: ?PieceKind,
     next: []const PieceKind,
 ) !void {
