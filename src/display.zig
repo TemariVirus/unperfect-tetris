@@ -67,6 +67,11 @@ const Event = union(enum) {
 pub fn main(allocator: Allocator, args: DisplayArgs, path: []const u8) !void {
     _ = args; // autofix
 
+    // Open PC file
+    const pc_file = try std.fs.cwd().openFile(path, .{});
+    defer pc_file.close();
+    const reader = pc_file.reader().any();
+
     // Set up terminal and vaxis
     var tty = try Tty.init();
     defer tty.deinit();
@@ -76,7 +81,7 @@ pub fn main(allocator: Allocator, args: DisplayArgs, path: []const u8) !void {
     var vx = try vaxis.init(allocator, .{});
     defer vx.deinit(allocator, tty.anyWriter());
     try vx.enterAltScreen(tty.anyWriter());
-    try vx.queryTerminal(tty.anyWriter(), 0);
+    try vx.enableDetectedFeatures(tty.anyWriter());
 
     // Vaxis event loop
     var loop: Loop = .{
@@ -84,15 +89,9 @@ pub fn main(allocator: Allocator, args: DisplayArgs, path: []const u8) !void {
         .vaxis = &vx,
     };
     try loop.init();
-
     try loop.start();
-    defer loop.stop();
 
-    // Open PC file and start indexing thread
-    const pc_file = try std.fs.cwd().openFile(path, .{});
-    defer pc_file.close();
-    const reader = pc_file.reader().any();
-
+    // Start indexing thread
     const SOLUTION_MIN_SIZE = 8;
     var solution_index = try SolutionIndex.initCapacity(
         allocator,
