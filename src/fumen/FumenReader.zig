@@ -313,9 +313,11 @@ pub fn outputFumen(
         start + i
     else
         input.len;
+
+    // Always write preceding url (if any)
+    try writer.writeAll(input[0..start -| 1]);
+    try writer.writeByte(args.@"output-type".toChr());
     if (args.append) {
-        try writer.writeAll(input[0 .. start - 1]);
-        try writer.writeByte(args.@"output-type".toChr());
         try writer.writeAll(input[start..end]);
 
         // Write first page
@@ -323,7 +325,6 @@ pub fn outputFumen(
         try writer.writeAll(&unpoll(1, 0));
         try writePieceAndFlags(writer, solution[0], false, false);
     } else {
-        try writer.writeByte(args.@"output-type".toChr());
         try writer.writeAll("115@");
 
         // Write field
