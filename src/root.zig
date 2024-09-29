@@ -89,14 +89,9 @@ pub const PCSolution = struct {
         const holds = try reader.readInt(u16, .little);
 
         var solution = PCSolution{};
-        while (solution.next.len < MAX_SEQ_LEN) {
-            const shift = 3 * @as(usize, solution.next.len);
-            const p: u3 = @truncate(seq >> @intCast(shift));
-            // 0b111 is the sentinel value for the end of the sequence
-            if (p == 0b111) {
-                break;
-            }
-            solution.next.appendAssumeCapacity(@enumFromInt(p));
+        solution.next = unpackNext(seq);
+        if (solution.next.len == 0) {
+            return solution;
         }
 
         var hold: PieceKind = solution.next.buffer[0];
@@ -125,6 +120,34 @@ pub const PCSolution = struct {
         }
 
         return solution;
+    }
+
+    /// Packs a next sequence into a u48.
+    pub fn packNext(pieces: NextArray) u48 {
+        var seq: u48 = 0;
+        for (0..pieces.len) |i| {
+            const p: u48 = @intFromEnum(pieces.buffer[i]);
+            seq |= p << @intCast(3 * i);
+        }
+        // Fill remaining bits with 1s
+        const shift = 3 * @as(u6, pieces.len);
+        seq |= @truncate(~@as(u64, 0) << shift);
+        return seq;
+    }
+
+    /// Unpacks a u48 into a next sequence.
+    pub fn unpackNext(seq: u48) NextArray {
+        var pieces = NextArray{};
+        while (pieces.len < MAX_SEQ_LEN) {
+            const shift = 3 * @as(u6, pieces.len);
+            const p: u3 = @truncate(seq >> @intCast(shift));
+            // 0b111 is the sentinel value for the end of the sequence
+            if (p == 0b111) {
+                break;
+            }
+            pieces.appendAssumeCapacity(@enumFromInt(p));
+        }
+        return pieces;
     }
 };
 

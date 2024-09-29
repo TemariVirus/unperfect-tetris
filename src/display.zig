@@ -188,7 +188,7 @@ pub fn main(allocator: Allocator, args: DisplayArgs, path: []const u8) !void {
                 .glyphs = BORDER_GLYPHS,
             },
         });
-        drawSequence(next_win, sol.next.buffer[0..next_len]);
+        drawSequence(next_win, sol.next.slice());
 
         const matrix_win = main_win.child(.{
             .x_off = 0,
@@ -207,7 +207,7 @@ pub fn main(allocator: Allocator, args: DisplayArgs, path: []const u8) !void {
                 .glyphs = BORDER_GLYPHS,
             },
         });
-        drawMatrix(matrix_win, sol.placements.buffer[0..sol.placements.len]);
+        drawMatrix(matrix_win, sol.placements.slice());
 
         const footer_win = main_win.child(.{
             .x_off = 0,

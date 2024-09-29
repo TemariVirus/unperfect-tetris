@@ -17,6 +17,7 @@ const SevenBag = engine.bags.SevenBag;
 const root = @import("perfect-tetris");
 const SequenceIterator = root.next.SequenceIterator;
 const pc = root.pc;
+const PCSolution = root.PCSolution;
 const Placement = root.Placement;
 
 // Height of perfect clears to find
@@ -163,7 +164,9 @@ const SolutionBuffer = struct {
 
         var len: usize = 0;
         while (try self.iter.next()) |pieces| {
-            self.sequences[index][len] = packSequence(&pieces);
+            var next = PCSolution.NextArray{ .len = pieces.len };
+            @memcpy(next.slice(), &pieces);
+            self.sequences[index][len] = PCSolution.packNext(next);
             len += 1;
             if (len >= CHUNK_SIZE) {
                 break;
@@ -284,10 +287,10 @@ const SolutionBuffer = struct {
             var holds: u16 = 0;
             var placements = [_]u8{0} ** NEXT_LEN;
 
-            const sequence = unpackSequence(seq, NEXT_LEN + 1);
+            const sequence = PCSolution.unpackNext(seq);
 
-            var hold = sequence[0];
-            var current = sequence[1];
+            var hold = sequence.buffer[0];
+            var current = sequence.buffer[1];
             for (sol, 0..) |placement, i| {
                 // Use canonical position so that the position is always in the
                 // range [0, 59]
@@ -304,7 +307,7 @@ const SolutionBuffer = struct {
                 }
                 // Only update current if it's not the last piece
                 if (i < sol.len - 1) {
-                    current = sequence[i + 2];
+                    current = sequence.buffer[i + 2];
                 }
             }
 
@@ -456,7 +459,6 @@ fn solveThread(buf: *SolutionBuffer) !void {
     defer _ = gpa.deinit();
 
     const nn = root.defaultNN();
-    defer nn.deinit(allocator);
 
     while (try buf.nextChunk()) |tuple| {
         const sol_count, const sequences, const solutions = tuple;
@@ -466,7 +468,7 @@ fn solveThread(buf: *SolutionBuffer) !void {
             _ = pc.findPc(
                 SevenBag,
                 allocator,
-                gameWithPieces(&unpackSequence(seq, NEXT_LEN + 1)),
+                gameWithPieces(PCSolution.unpackNext(seq)),
                 nn,
                 HEIGHT,
                 &solutions[solved],
@@ -488,39 +490,19 @@ fn solveThread(buf: *SolutionBuffer) !void {
     }
 }
 
-/// Pack a sequence of pieces into a u48.
-fn packSequence(pieces: []const PieceKind) u48 {
-    assert(pieces.len <= 48 / 3);
+fn gameWithPieces(pieces: PCSolution.NextArray) GameState {
+    assert(pieces.len >= 2);
 
-    var seq: u48 = 0;
-    for (pieces, 0..) |piece, i| {
-        seq |= @as(u48, @intFromEnum(piece)) << @intCast(3 * i);
-    }
-    // Fill remaining bits with 1s
-    seq |= @truncate(~@as(u64, 0) << @intCast(3 * pieces.len));
-    return seq;
-}
-
-/// Unpack a u48 into a sequence of pieces.
-fn unpackSequence(seq: u48, comptime len: usize) [len]PieceKind {
-    var pieces = [_]PieceKind{undefined} ** len;
-    for (0..pieces.len) |i| {
-        pieces[i] = @enumFromInt(@as(u3, @truncate(seq >> @intCast(3 * i))));
-    }
-    return pieces;
-}
-
-fn gameWithPieces(pieces: []const PieceKind) GameState {
     var game = GameState.init(SevenBag.init(0), engine.kicks.srs);
-    game.hold_kind = pieces[0];
-    game.current.kind = pieces[1];
+    game.hold_kind = pieces.buffer[0];
+    game.current.kind = pieces.buffer[1];
 
     for (0..@min(pieces.len - 2, game.next_pieces.len)) |i| {
-        game.next_pieces[i] = pieces[i + 2];
+        game.next_pieces[i] = pieces.buffer[i + 2];
     }
     game.bag.context.index = 0;
     for (0..pieces.len -| 9) |i| {
-        game.bag.context.pieces[i] = pieces[i + 9];
+        game.bag.context.pieces[i] = pieces.buffer[i + 9];
     }
 
     return game;
