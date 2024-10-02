@@ -43,15 +43,16 @@ const SolutionBuffer = struct {
     pub const Iterator = SequenceIterator(NEXT_LEN + 1, @min(6, NEXT_LEN));
     pub const AtomicLength = std.atomic.Value(isize);
 
-    mutex: Mutex = .{},
+    write_lock: Mutex = .{},
+    read_lock: Mutex = .{},
     solved: u64 = 0,
     count: u64 = 0,
     last_count: u64 = 0,
     timer: Timer,
     iter: Iterator,
 
-    write_idx: usize = 0,
-    read_idx: usize = 0,
+    write_idx: u32 = 0,
+    read_idx: std.atomic.Value(u32) = std.atomic.Value(u32).init(0),
     lengths: [CHUNKS]AtomicLength = [_]AtomicLength{AtomicLength.init(-1)} ** CHUNKS,
     sequences: [CHUNKS][CHUNK_SIZE]u48,
     solutions: [CHUNKS][CHUNK_SIZE][NEXT_LEN]Placement,
@@ -121,17 +122,17 @@ const SolutionBuffer = struct {
     }
 
     pub fn deinit(self: *SolutionBuffer) void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+        self.write_lock.lock();
+        defer self.write_lock.unlock();
 
         self.iter.deinit();
     }
 
-    fn mask(index: usize) usize {
+    fn mask(index: u32) u32 {
         return index % CHUNKS;
     }
 
-    fn mask2(index: usize) usize {
+    fn mask2(index: u32) u32 {
         return index % (2 * CHUNKS);
     }
 
@@ -139,21 +140,17 @@ const SolutionBuffer = struct {
     pub fn nextChunk(
         self: *SolutionBuffer,
     ) !?struct { *AtomicLength, []u48, [][NEXT_LEN]Placement } {
-        // Wait for space to become available
-        while (true) {
-            self.mutex.lock();
-            if (!self.isFull()) {
-                break;
-            }
+        self.write_lock.lock();
+        defer self.write_lock.unlock();
 
-            self.mutex.unlock();
+        if (self.isFull()) {
             std.debug.print(
                 "INFO: solution buffer is full. Consider increasing the number of chunks or the chunk size\n",
                 .{},
             );
-            std.time.sleep(std.time.ns_per_s);
+            // Wait for space to become available
+            Thread.Futex.wait(&self.read_idx, mask2(self.write_idx + CHUNKS));
         }
-        defer self.mutex.unlock();
 
         if (self.iter.done()) {
             return null;
@@ -182,25 +179,25 @@ const SolutionBuffer = struct {
     }
 
     /// Write all non-blocked finished chunks to disk, and free space in the
-    /// ring buffer. Returns true if any chunks were written.
+    /// ring buffer.
     pub fn writeDoneChunks(
         self: *SolutionBuffer,
         path: []const u8,
-    ) !bool {
-        self.mutex.lock();
-        defer self.mutex.unlock();
+    ) !void {
+        self.read_lock.lock();
+        defer self.read_lock.unlock();
 
         // Check if there's anything to write
         if (self.isEmpty() or
-            self.lengths[mask(self.read_idx)].load(.monotonic) < 0)
+            self.lengths[mask(self.read_idx.raw)].load(.monotonic) < 0)
         {
-            return false;
+            return;
         }
 
         // Multiple threads can save at the same time, but no threads should
         // start saving when we are exiting
         if (saving_threads.load(.monotonic) < 0) {
-            return false;
+            return;
         }
 
         _ = saving_threads.fetchAdd(1, .monotonic);
@@ -239,9 +236,9 @@ const SolutionBuffer = struct {
         var wrote = false;
         // A negative length indicates that the chunk is not done yet
         while (!self.isEmpty() and
-            self.lengths[mask(self.read_idx)].load(.monotonic) >= 0)
+            self.lengths[mask(self.read_idx.raw)].load(.monotonic) >= 0)
         {
-            const len: usize = @intCast(self.lengths[mask(self.read_idx)]
+            const len: usize = @intCast(self.lengths[mask(self.read_idx.raw)]
                 .load(.monotonic));
             self.solved += len;
             // NOTE: for the last chunk, the count value may become larger than
@@ -251,7 +248,8 @@ const SolutionBuffer = struct {
             try self.saveAppend(pc_writer, len);
 
             wrote = true;
-            self.read_idx = mask2(self.read_idx + 1);
+            self.read_idx.store(mask2(self.read_idx.raw + 1), .monotonic);
+            Thread.Futex.wake(&self.read_idx, 1);
         }
         try buf_writer.flush();
 
@@ -270,7 +268,9 @@ const SolutionBuffer = struct {
         try count_file.file.writer().print("{d}", .{self.count});
         try count_file.finish();
 
-        return wrote;
+        if (wrote) {
+            try self.printStatsAndBackup(path);
+        }
     }
 
     fn saveAppend(
@@ -281,8 +281,8 @@ const SolutionBuffer = struct {
         assert(NEXT_LEN <= 16);
 
         for (
-            self.sequences[mask(self.read_idx)][0..len],
-            self.solutions[mask(self.read_idx)][0..len],
+            self.sequences[mask(self.read_idx.raw)][0..len],
+            self.solutions[mask(self.read_idx.raw)][0..len],
         ) |seq, sol| {
             var holds: u16 = 0;
             var placements = [_]u8{0} ** NEXT_LEN;
@@ -317,17 +317,14 @@ const SolutionBuffer = struct {
         }
     }
 
-    pub fn printStatsAndBackup(self: *SolutionBuffer, path: []const u8) !void {
-        self.mutex.lock();
-        defer self.mutex.unlock();
-
+    fn printStatsAndBackup(self: *SolutionBuffer, path: []const u8) !void {
         std.debug.print(
             "Solved {} out of {}\n",
             .{ self.solved, self.count },
         );
 
         const count = self.count - self.last_count;
-        if (count >= THREADS * 512) {
+        if (count >= THREADS * 1024) {
             // Create backup files
             const allocator = self.iter.seen.allocator;
             {
@@ -372,11 +369,11 @@ const SolutionBuffer = struct {
     }
 
     fn isEmpty(self: SolutionBuffer) bool {
-        return self.write_idx == self.read_idx;
+        return self.write_idx == self.read_idx.load(.monotonic);
     }
 
     fn isFull(self: SolutionBuffer) bool {
-        return mask2(self.write_idx + CHUNKS) == self.read_idx;
+        return mask2(self.write_idx + CHUNKS) == self.read_idx.load(.monotonic);
     }
 };
 
@@ -485,9 +482,7 @@ fn solveThread(buf: *SolutionBuffer) !void {
         }
 
         sol_count.store(@intCast(solved), .monotonic);
-        if (try buf.writeDoneChunks(SAVE_PATH)) {
-            try buf.printStatsAndBackup(SAVE_PATH);
-        }
+        try buf.writeDoneChunks(SAVE_PATH);
     }
 }
 
