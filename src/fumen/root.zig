@@ -125,7 +125,7 @@ pub const FumenArgs = struct {
             ),
             .@"min-height" = "Overrides the minimum height of the PC to find.",
             .nn = "The path to the neural network to use for the solver. The path may be absolute, relative to the current working directory, or relative to the executable's directory. If not provided, a default built-in NN will be used.",
-            .save = "The piece type to save in the hold slot by the end of the perfect clear. If not specified, any piece may go into the hold slot. " ++
+            .save = "The piece type to save in the hold slot by the end of the perfect clear. This option is not case-sensitive. If not specified, any piece may go into the hold slot. " ++
                 enumValuesHelp(FumenArgs, PieceKind),
             .@"output-type" = std.fmt.comptimePrint(
                 "The type of fumen to output. If append is true, this option is ignored. " ++

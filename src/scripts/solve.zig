@@ -458,7 +458,8 @@ fn solveThread(buf: *SolutionBuffer) !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const nn = root.defaultNN();
+    const nn = try root.defaultNN(allocator);
+    defer nn.deinit(allocator);
 
     while (try buf.nextChunk()) |tuple| {
         const sol_count, const sequences, const solutions = tuple;

@@ -31,9 +31,9 @@ var load_default_nn = std.once((struct {
         default_nn = loadNNFromStr(fba.allocator(), @embedFile("nn_4l_json"));
     }
 }).load);
-pub fn defaultNN() NN {
+pub fn defaultNN(allocator: Allocator) !NN {
     load_default_nn.call();
-    return default_nn.?;
+    return try default_nn.?.clone(allocator);
 }
 
 pub const Placement = struct {
@@ -64,6 +64,30 @@ pub const NN = struct {
         var output: [1]f32 = undefined;
         self.net.predict(&input, &output);
         return output[0];
+    }
+
+    /// Creates a deep copy of the neural network.
+    pub fn clone(self: NN, allocator: Allocator) !NN {
+        const nodes = try allocator.dupe(NNInner.Node, self.net.nodes);
+        errdefer allocator.free(nodes);
+
+        const connections = try allocator.dupe(NNInner.Connection, self.net.connections.items);
+        errdefer allocator.free(connections);
+        const connection_splits = try allocator.dupe(u32, self.net.connections.splits);
+        errdefer allocator.free(connection_splits);
+
+        return .{
+            .net = .{
+                .nodes = nodes,
+                .connections = .{
+                    .items = connections,
+                    .splits = connection_splits,
+                },
+                .hidden_activation = self.net.hidden_activation,
+                .output_activation = self.net.output_activation,
+            },
+            .inputs_used = self.inputs_used,
+        };
     }
 };
 
@@ -229,13 +253,16 @@ pub fn findPcAuto(
         (minPcInfo(game.playfield) orelse return FindPcError.NoPcExists).height,
     );
 
+    const resolved_nn = nn orelse try defaultNN(allocator);
+    defer if (nn == null) resolved_nn.deinit(allocator);
+
     // Use fast pc if possible
     if (height <= 6) {
         if (pc.findPc(
             BagType,
             allocator,
             game,
-            nn orelse defaultNN(),
+            resolved_nn,
             @intCast(height),
             placements,
             save_hold,
@@ -251,7 +278,7 @@ pub fn findPcAuto(
         BagType,
         allocator,
         game,
-        nn orelse defaultNN(),
+        resolved_nn,
         @max(7, height),
         placements,
         save_hold,

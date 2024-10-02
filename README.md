@@ -30,7 +30,7 @@ solver runs on a single thread in this demo.
 be absolute, relative to the current working directory, or relative to the
 executable's directory. If not provided, a default built-in NN will be used.
 
-`-p`, `--pps` The target pieces per second of the bot. (default: 10)
+`-p`, `--pps` The target pieces per second of the bot. (default: `10`)
 
 ### Display
 
@@ -76,7 +76,7 @@ fumen from scratch.
 `-k`, `--kicks` Kick/rotation system to use. For kick systems that have a
 180-less and 180 variant, the 180-less variant has no 180 rotations. The 180
 variant has 180 rotations but no 180 kicks. Supported Values:
-[none,none180,srs,srs180,srsPlus,srsTetrio] (default: srs)
+[`none`,`none180`,`srs`,`srs180`,`srsPlus`,`srsTetrio`] (default: `srs`)
 
 `-m`, `--min-height` Overrides the minimum height of the PC to find.
 
@@ -85,8 +85,8 @@ be absolute, relative to the current working directory, or relative to the
 executable's directory. If not provided, a default built-in NN will be used.
 
 `-s`, `--save` The piece type to save in the hold slot by the end of the
-perfect clear. If not specified, any piece may go into the hold slot. Supported
-Values: [i,o,t,s,z,l,j]
+perfect clear. This option is not case-sensitive. If not specified, any piece may go into the hold slot. Supported
+Values: [`i`,`o`,`t`,`s`,`z`,`l`,`j`]
 
 `-t`, `--output-type` The type of fumen to output. If append is true, this
 option is ignored. Supported Values: [`edit`, `list`, `view`] (default: `view`)
@@ -107,11 +107,12 @@ solutions.
 
 `-h`, `--help` Print the help message.
 
-## Zig Version
-
-0.13.0
-
 ## Build commands
+
+You will need to have Zig installed to build the project. You can download Zig
+from [here](https://ziglang.org/download/).
+
+This project currently uses Zig 0.13.0.
 
 ### Run
 
