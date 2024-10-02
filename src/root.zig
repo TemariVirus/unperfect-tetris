@@ -71,7 +71,10 @@ pub const NN = struct {
         const nodes = try allocator.dupe(NNInner.Node, self.net.nodes);
         errdefer allocator.free(nodes);
 
-        const connections = try allocator.dupe(NNInner.Connection, self.net.connections.items);
+        const connections = try allocator.dupe(
+            NNInner.Connection,
+            self.net.connections.items[0..self.net.connections.flatLen()],
+        );
         errdefer allocator.free(connections);
         const connection_splits = try allocator.dupe(u32, self.net.connections.splits);
         errdefer allocator.free(connection_splits);
@@ -80,7 +83,7 @@ pub const NN = struct {
             .net = .{
                 .nodes = nodes,
                 .connections = .{
-                    .items = connections,
+                    .items = connections.ptr,
                     .splits = connection_splits,
                 },
                 .hidden_activation = self.net.hidden_activation,
