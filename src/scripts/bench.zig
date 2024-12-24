@@ -11,16 +11,16 @@ const pc = root.pc;
 const pc_slow = root.pc_slow;
 
 pub fn main() !void {
-    // Mean: 11.558ms ± 20.996ms
-    // Max: 121.477ms
+    // Mean: 6.798ms ± 11.97ms
+    // Max: 59.91ms
     try pcBenchmark(4, "NNs/Fast3.json", false);
 
-    // Mean: 14.94ms ± 26.729ms
-    // Max: 171.876ms
+    // Mean: 9.398ms ± 16.354ms
+    // Max: 92.664ms
     try pcBenchmark(4, "NNs/Fast3.json", true);
 
-    // Mean: 10.873ms ± 22.45ms
-    // Max: 140.624ms
+    // Mean: 6.4ms ± 12.314ms
+    // Max: 80.231ms
     try pcBenchmark(6, "NNs/Fast3.json", false);
 
     // Mean: 47ns

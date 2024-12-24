@@ -50,15 +50,15 @@ pub fn PiecePosSet(shape: [3]usize) type {
             assert(y < height);
             assert(facing < depth);
 
-            return x + y * width + facing * width * height;
+            return facing + y * depth + x * depth * height;
         }
 
         /// Converts an index into the backing bit set to it's coressponding
         /// piece and position.
         pub fn reverseIndex(piece_kind: PieceKind, index: usize) Placement {
-            const x = index % width;
-            const y = (index / width) % height;
-            const facing = index / (width * height);
+            const x = index / (depth * height);
+            const y = (index / depth) % height;
+            const facing = index % depth;
 
             const piece = Piece{
                 .kind = piece_kind,

@@ -21,7 +21,7 @@ const small = @import("options").small;
 
 pub const PiecePosSet = @import("PiecePosSet.zig").PiecePosSet(.{
     10,
-    (if (small) 4 else 6) + 3,
+    if (small) 4 else 6,
     4,
 });
 
@@ -93,6 +93,7 @@ pub fn Intermediate(comptime TPiecePosSet: type) type {
         current: Piece,
         pos: Position,
         do_o_rotations: bool,
+        max_height: i8,
         kicks: *const KickFn,
 
         const Self = @This();
@@ -138,7 +139,9 @@ pub fn Intermediate(comptime TPiecePosSet: type) type {
         fn collides(self: Self, piece: Piece, pos: Position) bool {
             return pos.x > piece.maxX() or
                 pos.x < piece.minX() or
-                // pos.y > piece.maxY() or
+                // The piece is out of bounds if the piece is completely above
+                // the playfield
+                pos.y >= self.max_height + piece.minY() or
                 pos.y < piece.minY() or
                 self.collision_set.contains(piece, pos);
         }
@@ -230,10 +233,10 @@ fn collisionSet(
             .facing = facing,
             .kind = current.kind,
         };
-        var y = piece.minY();
-        while (y <= @as(i8, max_height) - @as(i8, piece.top())) : (y += 1) {
-            var x = piece.minX();
-            while (x <= piece.maxX()) : (x += 1) {
+        var x = piece.minX();
+        while (x <= piece.maxX()) : (x += 1) {
+            var y = piece.minY();
+            while (y <= @as(i8, max_height) - @as(i8, piece.top())) : (y += 1) {
                 if (playfield.collides(piece, .{ .x = x, .y = y })) {
                     collision_set.put(piece, .{ .x = x, .y = y });
                 }
@@ -291,9 +294,6 @@ pub fn allPlacementsRaw(
             const temp = placement.unpack(piece_kind);
             break :blk .{ temp.piece, temp.pos };
         };
-        if (seen.putGet(piece, pos)) {
-            continue;
-        }
 
         for (Move.moves) |move| {
             var new_game = Intermediate(TPiecePosSet){
@@ -301,21 +301,19 @@ pub fn allPlacementsRaw(
                 .current = piece,
                 .pos = pos,
                 .do_o_rotations = do_o_rotations,
+                .max_height = max_height,
                 .kicks = kicks,
             };
 
-            // Skip if piece was unable to move
+            // Skip if piece was unable to move or went out of bounds
             if (!new_game.makeMove(move)) {
                 continue;
             }
-            if (seen.contains(new_game.current, new_game.pos)) {
+            if (seen.putGet(new_game.current, new_game.pos)) {
                 continue;
             }
 
-            // Branch out after movement if the piece is not too high
-            if (new_game.pos.y > @as(i8, max_height) + new_game.current.minY()) {
-                continue;
-            }
+            // Branch out after movement
             stack.append(
                 TPiecePosition.pack(new_game.current, new_game.pos),
             ) catch unreachable;
