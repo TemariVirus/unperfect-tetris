@@ -93,6 +93,14 @@ fn minifyJson(
     return minify_cmd.addOutputFileArg(name);
 }
 
+fn stripModuleRecursive(module: *Build.Module) void {
+    module.strip = true;
+    var iter = module.import_table.iterator();
+    while (iter.next()) |entry| {
+        stripModuleRecursive(entry.value_ptr.*);
+    }
+}
+
 fn buildExe(
     b: *Build,
     target: Build.ResolvedTarget,
@@ -125,8 +133,8 @@ fn buildExe(
         root_module.import_table.get("zmai").?,
     );
 
-    if (optimize == .ReleaseFast) {
-        exe.root_module.strip = true;
+    if (b.option(bool, "strip", "Strip executable binary") orelse false) {
+        stripModuleRecursive(&exe.root_module);
     }
 
     b.installArtifact(exe);
