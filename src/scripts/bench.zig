@@ -11,16 +11,16 @@ const pc = root.pc;
 const pc_slow = root.pc_slow;
 
 pub fn main() !void {
-    // Mean: 19.859ms ± 48.745ms
-    // Max: 426.163ms
+    // Mean: 11.558ms ± 20.996ms
+    // Max: 121.477ms
     try pcBenchmark(4, "NNs/Fast3.json", false);
 
-    // Mean: 32.862ms ± 79.285ms
-    // Max: 707.394ms
+    // Mean: 14.94ms ± 26.729ms
+    // Max: 171.876ms
     try pcBenchmark(4, "NNs/Fast3.json", true);
 
-    // Mean: 16.603ms ± 37.504ms
-    // Max: 385.44ms
+    // Mean: 10.873ms ± 22.45ms
+    // Max: 140.624ms
     try pcBenchmark(6, "NNs/Fast3.json", false);
 
     // Mean: 47ns
@@ -86,7 +86,7 @@ pub fn pcBenchmark(
     for (0..RUN_COUNT) |i| {
         const gamestate = GameState.init(
             SevenBag.init(i),
-            engine.kicks.srsPlus,
+            &engine.kicks.srsPlus,
         );
 
         const solve_start = time.nanoTimestamp();
@@ -142,7 +142,7 @@ pub fn getFeaturesBenchmark() void {
     // Randomly place 3 pieces
     var xor = std.Random.Xoroshiro128.init(0);
     const rand = xor.random();
-    var game = GameState.init(SevenBag.init(xor.next()), engine.kicks.srsPlus);
+    var game = GameState.init(SevenBag.init(xor.next()), &engine.kicks.srsPlus);
     for (0..3) |_| {
         game.current.facing = rand.enumValue(engine.pieces.Facing);
         game.pos.x = rand.intRangeAtMost(

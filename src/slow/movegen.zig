@@ -42,93 +42,6 @@ const PiecePosition = packed struct {
     }
 };
 
-/// Intermediate game state when searching for possible placements.
-const Intermediate = struct {
-    playfield: BoardMask,
-    current: Piece,
-    pos: Position,
-    do_o_rotations: bool,
-    kicks: *const KickFn,
-
-    /// Returns `true` if the move was successful. Otherwise, `false`.
-    pub fn makeMove(self: *Intermediate, move: Move) bool {
-        return switch (move) {
-            .left => blk: {
-                if (self.pos.x <= self.current.minX()) {
-                    break :blk false;
-                }
-                break :blk self.tryTranspose(.{
-                    .x = self.pos.x - 1,
-                    .y = self.pos.y,
-                });
-            },
-            .right => blk: {
-                if (self.pos.x >= self.current.maxX()) {
-                    break :blk false;
-                }
-                break :blk self.tryTranspose(.{
-                    .x = self.pos.x + 1,
-                    .y = self.pos.y,
-                });
-            },
-            .rotate_cw => self.tryRotate(.quarter_cw),
-            .rotate_double => self.tryRotate(.half),
-            .rotate_ccw => self.tryRotate(.quarter_ccw),
-            .drop => blk: {
-                if (self.pos.y <= self.current.minY()) {
-                    break :blk false;
-                }
-                break :blk self.tryTranspose(.{
-                    .x = self.pos.x,
-                    .y = self.pos.y - 1,
-                });
-            },
-        };
-    }
-
-    /// Returns `true` if the piece was successfully transposed. Otherwise,
-    /// `false`.
-    fn tryTranspose(self: *Intermediate, pos: Position) bool {
-        if (self.playfield.collides(self.current.mask(), pos)) {
-            return false;
-        }
-        self.pos = pos;
-        return true;
-    }
-
-    /// Returns `true` if the piece was successfully rotated. Otherwise,
-    /// `false`.
-    fn tryRotate(self: *Intermediate, rotation: Rotation) bool {
-        if (self.current.kind == .o and !self.do_o_rotations) {
-            return false;
-        }
-
-        const new_piece = Piece{
-            .facing = self.current.facing.rotate(rotation),
-            .kind = self.current.kind,
-        };
-
-        for (self.kicks(self.current, rotation)) |kick| {
-            const kicked_pos = self.pos.add(kick);
-            if (!self.playfield.collides(new_piece.mask(), kicked_pos)) {
-                self.current = new_piece;
-                self.pos = kicked_pos;
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// Returns `true` if the piece is on the ground. Otherwise, `false`.
-    pub fn onGround(self: Intermediate) bool {
-        return self.playfield.collides(
-            self.current.mask(),
-            Position{ .x = self.pos.x, .y = self.pos.y - 1 },
-        );
-    }
-};
-
 /// Returns the set of all placements where the top of the piece does not
 /// exceed `max_height`. Assumes that no cells in the playfield are higher than
 /// `max_height`.
@@ -144,7 +57,6 @@ pub fn allPlacements(
         PiecePosition,
         PlacementStack,
         BoardMask,
-        Intermediate,
         playfield,
         do_o_rotations,
         kicks,
@@ -208,7 +120,7 @@ test allPlacements {
     const placements = allPlacements(
         playfield,
         false,
-        engine.kicks.srs,
+        &engine.kicks.srs,
         PIECE,
         5,
     );

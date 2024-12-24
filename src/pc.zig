@@ -150,11 +150,11 @@ pub fn hasOKicks(kicks: *const KickFn) bool {
     // Check if 1st O kick could be something other than (0, 0)
     for (std.enums.values(Facing)) |facing| {
         for (std.enums.values(Rotation)) |rot| {
-            const k = kicks(
+            const ks = kicks(
                 .{ .kind = .o, .facing = facing },
                 rot,
             );
-            if (k.len > 0 and (k[0].x != 0 or k[0].y != 0)) {
+            if (ks.len > 0 and (ks[0].x != 0 or ks[0].y != 0)) {
                 return true;
             }
         }
@@ -168,7 +168,7 @@ fn findPcInner(
     queues: []movegen.MoveQueue,
     placements: []Placement,
     do_o_rotations: bool,
-    kick_fn: *const KickFn,
+    kicks: *const KickFn,
     cache: *NodeSet,
     nn: NN,
     max_height: u3,
@@ -206,7 +206,7 @@ fn findPcInner(
     const m1 = movegen.allPlacements(
         playfield,
         do_o_rotations,
-        kick_fn,
+        kicks,
         pieces[0],
         max_height,
     );
@@ -226,7 +226,7 @@ fn findPcInner(
         const m2 = movegen.allPlacements(
             playfield,
             do_o_rotations,
-            kick_fn,
+            kicks,
             pieces[1],
             max_height,
         );
@@ -262,7 +262,7 @@ fn findPcInner(
             queues[1..],
             placements[1..],
             do_o_rotations,
-            kick_fn,
+            kicks,
             cache,
             nn,
             new_height,
@@ -457,7 +457,7 @@ test "4-line PC" {
 
     var gamestate = GameState(SevenBag).init(
         SevenBag.init(0),
-        engine.kicks.srsPlus,
+        &engine.kicks.srsPlus,
     );
 
     const nn = try NN.load(allocator, "NNs/Fast3.json");

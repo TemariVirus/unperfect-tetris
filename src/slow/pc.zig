@@ -114,7 +114,7 @@ fn findPcInner(
     queues: []movegen.MoveQueue,
     placements: []Placement,
     do_o_rotations: bool,
-    kick_fn: *const KickFn,
+    kicks: *const KickFn,
     cache: *NodeSet,
     nn: NN,
     max_height: u7,
@@ -153,7 +153,7 @@ fn findPcInner(
     const m1 = movegen.allPlacements(
         playfield,
         do_o_rotations,
-        kick_fn,
+        kicks,
         pieces[0],
         max_height,
     );
@@ -172,7 +172,7 @@ fn findPcInner(
         const m2 = movegen.allPlacements(
             playfield,
             do_o_rotations,
-            kick_fn,
+            kicks,
             pieces[1],
             max_height,
         );
@@ -208,7 +208,7 @@ fn findPcInner(
             queues[1..],
             placements[1..],
             do_o_rotations,
-            kick_fn,
+            kicks,
             cache,
             nn,
             new_height,
@@ -430,7 +430,7 @@ test "4-line PC" {
 
     var gamestate = GameState(SevenBag).init(
         SevenBag.init(0),
-        engine.kicks.srsPlus,
+        &engine.kicks.srsPlus,
     );
 
     const nn = try NN.load(allocator, "NNs/Fast3.json");
