@@ -1,6 +1,6 @@
 .{
     .name = "perfect-tetris",
-    .version = "1.1.0",
+    .version = "1.1.1",
     .dependencies = .{
         .engine = .{
             .url = "git+https://github.com/TemariVirus/Budget-Tetris-Engine#0f786567ea92f3275f6e68bea10be72487ad0bc3",
