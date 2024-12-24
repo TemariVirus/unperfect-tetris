@@ -471,11 +471,50 @@ test "4-line PC" {
         allocator,
         gamestate,
         nn,
-        0,
+        4,
         placements,
         .s,
     );
     try expect(solution.len == 10);
+    for (solution, 0..) |placement, i| {
+        if (gamestate.current.kind != placement.piece.kind) {
+            gamestate.hold();
+        }
+        try expect(gamestate.current.kind == placement.piece.kind);
+        gamestate.current.facing = placement.piece.facing;
+
+        gamestate.pos = placement.pos;
+        try expect(gamestate.lockCurrent(-1).pc == (i + 1 == solution.len));
+        gamestate.nextPiece();
+    }
+
+    try expect(gamestate.hold_kind == .s);
+}
+
+test "6-line PC" {
+    const allocator = std.testing.allocator;
+
+    var gamestate = GameState(SevenBag).init(
+        SevenBag.init(0),
+        &engine.kicks.srsPlus,
+    );
+
+    const nn = try NN.load(allocator, "NNs/Fast3.json");
+    defer nn.deinit(allocator);
+
+    const placements = try allocator.alloc(Placement, 15);
+    defer allocator.free(placements);
+
+    const solution = try findPc(
+        SevenBag,
+        allocator,
+        gamestate,
+        nn,
+        6,
+        placements,
+        .s,
+    );
+    try expect(solution.len == 15);
     for (solution, 0..) |placement, i| {
         if (gamestate.current.kind != placement.piece.kind) {
             gamestate.hold();

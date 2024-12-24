@@ -132,3 +132,26 @@ test allPlacements {
     }
     try expect(count == 25);
 }
+
+test "No placements" {
+    var playfield = BoardMask{};
+    playfield.rows[2] |= 0b1111111110_0;
+    playfield.rows[1] |= 0b1111111110_0;
+    playfield.rows[0] |= 0b1111111100_0;
+
+    const PIECE = PieceKind.j;
+    const placements = allPlacements(
+        playfield,
+        false,
+        &engine.kicks.none,
+        PIECE,
+        3,
+    );
+
+    var iter = placements.iterator(PIECE);
+    var count: usize = 0;
+    while (iter.next()) |_| {
+        count += 1;
+    }
+    try expect(count == 0);
+}

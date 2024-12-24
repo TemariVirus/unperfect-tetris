@@ -236,13 +236,14 @@ fn collisionSet(
         var x = piece.minX();
         while (x <= piece.maxX()) : (x += 1) {
             var y = piece.minY();
-            while (y <= @as(i8, max_height) - @as(i8, piece.top())) : (y += 1) {
+            while (y < @as(i8, max_height) + piece.minY()) : (y += 1) {
                 if (playfield.collides(piece, .{ .x = x, .y = y })) {
                     collision_set.put(piece, .{ .x = x, .y = y });
                 }
             }
         }
     }
+
     return collision_set;
 }
 
@@ -271,19 +272,21 @@ pub fn allPlacementsRaw(
 
     // Start right above `max_height`
     for (std.enums.values(Facing)) |facing| {
+        if (!do_o_rotations and piece_kind == .o and facing != .up) {
+            continue;
+        }
         const piece = Piece{
             .facing = facing,
             .kind = piece_kind,
         };
-        const pos = Position{
-            .x = 0,
-            .y = @as(i8, max_height) + piece.minY(),
-        };
 
-        if (!do_o_rotations and piece_kind == .o and facing != .up) {
-            continue;
+        var x = piece.minX();
+        while (x <= piece.maxX()) : (x += 1) {
+            stack.append(TPiecePosition.pack(piece, .{
+                .x = x,
+                .y = @as(i8, max_height) + piece.minY(),
+            })) catch unreachable;
         }
-        stack.append(TPiecePosition.pack(piece, pos)) catch unreachable;
     }
 
     while (stack.len > 0) {
@@ -394,4 +397,27 @@ test allPlacements {
         count += 1;
     }
     try expect(count == 25);
+}
+
+test "No placements" {
+    var playfield = BoardMask{};
+    playfield.mask |= @as(u64, 0b1111111110) << 20;
+    playfield.mask |= @as(u64, 0b1111111110) << 10;
+    playfield.mask |= @as(u64, 0b1111111100);
+
+    const PIECE = PieceKind.j;
+    const placements = allPlacements(
+        playfield,
+        false,
+        &engine.kicks.none,
+        PIECE,
+        3,
+    );
+
+    var iter = placements.iterator(PIECE);
+    var count: usize = 0;
+    while (iter.next()) |_| {
+        count += 1;
+    }
+    try expect(count == 0);
 }

@@ -444,7 +444,7 @@ test "4-line PC" {
         allocator,
         gamestate,
         nn,
-        0,
+        4,
         placements,
         .s,
     );
