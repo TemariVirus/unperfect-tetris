@@ -137,13 +137,18 @@ pub fn Intermediate(comptime TPiecePosSet: type) type {
         /// Returns `true` if the piece would collide with the playfield at the
         /// given position. Otherwise, `false`.
         fn collides(self: Self, piece: Piece, pos: Position) bool {
-            return pos.x > piece.maxX() or
+            // Out of bounds
+            if (pos.x > piece.maxX() or
                 pos.x < piece.minX() or
-                // The piece is out of bounds if the piece is completely above
-                // the playfield
-                pos.y >= self.max_height + piece.minY() or
-                pos.y < piece.minY() or
-                self.collision_set.contains(piece, pos);
+                pos.y < piece.minY())
+            {
+                return true;
+            }
+            // Piece is completely above the playfield
+            if (pos.y >= self.max_height + piece.minY()) {
+                return false;
+            }
+            return self.collision_set.contains(piece, pos);
         }
 
         /// Returns `true` if the piece was successfully transposed. Otherwise, `false`.
@@ -188,29 +193,6 @@ pub fn Intermediate(comptime TPiecePosSet: type) type {
     };
 }
 
-/// Returns the set of all placements where the top of the piece does not
-/// exceed `max_height`. Assumes that no cells in the playfield are higher than
-/// `max_height`.
-pub fn allPlacements(
-    playfield: BoardMask,
-    do_o_rotations: bool,
-    kicks: *const KickFn,
-    piece_kind: PieceKind,
-    max_height: u6,
-) PiecePosSet {
-    return allPlacementsRaw(
-        PiecePosSet,
-        PiecePosition,
-        PlacementStack,
-        BoardMask,
-        playfield,
-        do_o_rotations,
-        kicks,
-        piece_kind,
-        max_height,
-    );
-}
-
 fn collisionSet(
     comptime TPiecePosSet: type,
     comptime TBoardMask: type,
@@ -245,6 +227,29 @@ fn collisionSet(
     }
 
     return collision_set;
+}
+
+/// Returns the set of all placements where the top of the piece does not
+/// exceed `max_height`. Assumes that no cells in the playfield are higher than
+/// `max_height`.
+pub fn allPlacements(
+    playfield: BoardMask,
+    do_o_rotations: bool,
+    kicks: *const KickFn,
+    piece_kind: PieceKind,
+    max_height: u6,
+) PiecePosSet {
+    return allPlacementsRaw(
+        PiecePosSet,
+        PiecePosition,
+        PlacementStack,
+        BoardMask,
+        playfield,
+        do_o_rotations,
+        kicks,
+        piece_kind,
+        max_height,
+    );
 }
 
 pub fn allPlacementsRaw(
@@ -308,8 +313,10 @@ pub fn allPlacementsRaw(
                 .kicks = kicks,
             };
 
-            // Skip if piece was unable to move or went out of bounds
-            if (!new_game.makeMove(move)) {
+            // Skip if piece was unable to move or is completely above the playfield
+            if (!new_game.makeMove(move) or
+                new_game.pos.y >= max_height + new_game.current.minY())
+            {
                 continue;
             }
             if (seen.putGet(new_game.current, new_game.pos)) {
@@ -410,6 +417,53 @@ test "No placements" {
         playfield,
         false,
         &engine.kicks.none,
+        PIECE,
+        3,
+    );
+
+    var iter = placements.iterator(PIECE);
+    var count: usize = 0;
+    while (iter.next()) |_| {
+        count += 1;
+    }
+    try expect(count == 0);
+}
+
+test "No placements 2" {
+    var playfield = BoardMask{};
+    playfield.mask |= @as(u64, 0b1111111110) << 30;
+    playfield.mask |= @as(u64, 0b1111111100) << 20;
+    playfield.mask |= @as(u64, 0b1111111000) << 10;
+    playfield.mask |= @as(u64, 0b1111111100);
+
+    const PIECE = PieceKind.j;
+    const placements = allPlacements(
+        playfield,
+        false,
+        &engine.kicks.srsPlus,
+        PIECE,
+        4,
+    );
+
+    var iter = placements.iterator(PIECE);
+    var count: usize = 0;
+    while (iter.next()) |_| {
+        count += 1;
+    }
+    try expect(count == 0);
+}
+
+test "No placements 3" {
+    var playfield = BoardMask{};
+    playfield.mask |= @as(u64, 0b1111111110) << 20;
+    playfield.mask |= @as(u64, 0b1111111100) << 10;
+    playfield.mask |= @as(u64, 0b1111111101);
+
+    const PIECE = PieceKind.z;
+    const placements = allPlacements(
+        playfield,
+        false,
+        &engine.kicks.srsPlus,
         PIECE,
         3,
     );

@@ -11,19 +11,22 @@ const pc = root.pc;
 const pc_slow = root.pc_slow;
 
 pub fn main() !void {
-    // Mean: 11.516ms ± 29.32ms
-    // Max: 310.123ms
+    // Benchmark command:
+    // zig build bench -Dcpu=baseline
+
+    // Mean: 11.913ms ± 29.613ms
+    // Max: 268.123ms
     try pcBenchmark(4, "NNs/Fast3.json", false);
 
-    // Mean: 16.325ms ± 38.977ms
-    // Max: 418.22ms
+    // Mean: 17.716ms ± 42.267ms
+    // Max: 376.861ms
     try pcBenchmark(4, "NNs/Fast3.json", true);
 
-    // Mean: 9.289ms ± 16.793ms
-    // Max: 98.057ms
+    // Mean: 10.621ms ± 23.924ms
+    // Max: 242.959ms
     try pcBenchmark(6, "NNs/Fast3.json", false);
 
-    // Mean: 47ns
+    // Mean: 62ns
     getFeaturesBenchmark();
 }
 
