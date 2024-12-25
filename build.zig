@@ -43,16 +43,6 @@ pub fn build(b: *Build) void {
         },
     });
 
-    // Add options
-    const small = b.option(
-        bool,
-        "small",
-        "Optimise for perfect clears with 4 or fewer lines",
-    ) orelse false;
-    const options = b.addOptions();
-    options.addOption(bool, "small", small);
-    root_module.addOptions("options", options);
-
     // Add NN files
     const install_NNs = b.addInstallDirectory(.{
         .source_dir = b.path("NNs"),
@@ -181,10 +171,6 @@ fn buildTests(b: *Build, root_module: *Build.Module) void {
     const lib_tests = b.addTest(.{
         .root_source_file = b.path("src/root.zig"),
     });
-    lib_tests.root_module.addImport(
-        "options",
-        root_module.import_table.get("options").?,
-    );
     lib_tests.root_module.addImport(
         "nn_4l_json",
         root_module.import_table.get("nn_4l_json").?,

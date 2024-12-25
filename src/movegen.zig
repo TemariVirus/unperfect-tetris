@@ -17,44 +17,14 @@ const NN = root.NN;
 const PieceMask = root.bit_masks.PieceMask;
 const Placement = root.Placement;
 
-const small = @import("options").small;
+pub const PiecePosSet = @import("PiecePosSet.zig").PiecePosSet(.{ 10, 6, 4 });
 
-pub const PiecePosSet = @import("PiecePosSet.zig").PiecePosSet(.{
-    10,
-    if (small) 4 else 6,
-    4,
-});
-
-// 40 cells * 4 rotations = 160 intermediate placements at most
 // 60 cells * 4 rotations = 240 intermediate placements at most
 const PlacementStack = std.BoundedArray(
     PiecePosition,
-    if (small) 160 else 240,
+    240,
 );
-const PiecePosition = if (small) packed struct {
-    facing: Facing,
-    pos: u6,
-
-    pub fn pack(piece: Piece, pos: Position) PiecePosition {
-        const x = pos.x - piece.minX();
-        const y = pos.y - piece.minY();
-        return PiecePosition{
-            .facing = piece.facing,
-            .pos = @intCast(y * BoardMask.WIDTH + x),
-        };
-    }
-
-    pub fn unpack(self: PiecePosition, piece_kind: PieceKind) Placement {
-        const piece = Piece{ .kind = piece_kind, .facing = self.facing };
-        return .{
-            .piece = piece,
-            .pos = .{
-                .x = @intCast(self.pos % BoardMask.WIDTH + piece.minX()),
-                .y = @intCast(self.pos / BoardMask.WIDTH + piece.minY()),
-            },
-        };
-    }
-} else packed struct {
+const PiecePosition = packed struct {
     y: i8,
     x: i6,
     facing: Facing,
