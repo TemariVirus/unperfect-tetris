@@ -193,6 +193,8 @@ pub fn Intermediate(comptime TPiecePosSet: type) type {
     };
 }
 
+/// Returns the set of all placements where the piece collides with the playfield.
+/// Assumes that no cells in the playfield are higher than `max_height`.
 fn collisionSet(
     comptime TPiecePosSet: type,
     comptime TBoardMask: type,

@@ -48,12 +48,9 @@ pub const BoardMask = struct {
 
     /// Check if a piece would collide with the board mask at a given position.
     pub fn collides(self: BoardMask, piece: Piece, pos: Position) bool {
-        if (pos.x < piece.minX() or
-            pos.x > piece.maxX() or
-            pos.y < piece.minY())
-        {
-            return true;
-        }
+        assert(pos.x >= piece.minX());
+        assert(pos.x <= piece.maxX());
+        assert(pos.y >= piece.minY());
 
         const shift = getShift(pos);
         if (shift > 0) {
