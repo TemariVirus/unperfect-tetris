@@ -268,6 +268,7 @@ fn findPcInner(
             new_height,
             save_hold,
         )) {
+            @branchHint(.unlikely);
             placements[0] = placement;
             return true;
         }

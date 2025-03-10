@@ -14,19 +14,19 @@ pub fn main() !void {
     // Benchmark command:
     // zig build bench -Dcpu=baseline
 
-    // Mean: 11.864ms ± 29.254ms
-    // Max: 257.017ms
+    // Mean: 11.26ms ± 27.943ms
+    // Max: 250.469ms
     try pcBenchmark(4, "NNs/Fast3.json", false);
 
-    // Mean: 15.939ms ± 38.706ms
-    // Max: 338.054ms
+    // Mean: 15.277ms ± 37.235ms
+    // Max: 333.648ms
     try pcBenchmark(4, "NNs/Fast3.json", true);
 
-    // Mean: 10.035ms ± 22.749ms
-    // Max: 233.465ms
+    // Mean: 9.954ms ± 22.327ms
+    // Max: 227.343ms
     try pcBenchmark(6, "NNs/Fast3.json", false);
 
-    // Mean: 59ns
+    // Mean: 58ns
     getFeaturesBenchmark();
 }
 

@@ -136,7 +136,7 @@ pub fn Intermediate(comptime TPiecePosSet: type) type {
                 return false;
             }
 
-            const new_piece = Piece{
+            const new_piece: Piece = .{
                 .facing = self.current.facing.rotate(rotation),
                 .kind = self.current.kind,
             };
@@ -183,7 +183,7 @@ fn collisionSet(
             continue;
         }
 
-        const piece = Piece{
+        const piece: Piece = .{
             .facing = facing,
             .kind = current.kind,
         };
