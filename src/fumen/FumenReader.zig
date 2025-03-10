@@ -115,7 +115,7 @@ const FumenBlock = enum(u8) {
             .t => .t,
             .j => .j,
             .s => .s,
-            else => unreachable,
+            else => @panic("Invalid conversion"),
         };
     }
 
@@ -308,7 +308,8 @@ pub fn outputFumen(
 ) !void {
     // Initialise fumen
     const input = parsed.reader.data;
-    const start = std.mem.lastIndexOf(u8, input, "115@") orelse unreachable;
+    const start = std.mem.lastIndexOf(u8, input, "115@") orelse
+        unreachable; // Already checked in FumenReader.init
     const end = if (std.mem.indexOfScalar(u8, input[start..], '#')) |i|
         start + i
     else

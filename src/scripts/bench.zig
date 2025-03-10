@@ -26,11 +26,11 @@ pub fn main() !void {
     // Max: 233.465ms
     try pcBenchmark(6, "NNs/Fast3.json", false);
 
-    // Mean: 60ns
+    // Mean: 59ns
     getFeaturesBenchmark();
 }
 
-fn mean(T: type, values: []T) T {
+fn mean(T: type, values: []const T) T {
     var sum: T = 0;
     for (values) |v| {
         sum += v;
@@ -38,15 +38,12 @@ fn mean(T: type, values: []T) T {
     return sum / std.math.lossyCast(T, values.len);
 }
 
-fn max(T: type, values: []T) T {
-    var maximum: T = values[0];
-    for (values) |v| {
-        maximum = @max(v, maximum);
-    }
-    return maximum;
+fn max(T: type, values: []const T) T {
+    return std.sort.max(T, values, {}, std.sort.asc(T)) orelse
+        @panic("max: empty array");
 }
 
-fn standardDeviation(T: type, values: []T) !f64 {
+fn standardDeviation(T: type, values: []const T) !f64 {
     const m = mean(T, values);
     var sum: f64 = 0;
     for (values) |v| {
@@ -86,7 +83,7 @@ pub fn pcBenchmark(
 
     var times: [RUN_COUNT]u64 = undefined;
     for (0..RUN_COUNT) |i| {
-        const gamestate = GameState.init(
+        const gamestate: GameState = .init(
             SevenBag.init(i),
             &engine.kicks.srsPlus,
         );
@@ -144,7 +141,7 @@ pub fn getFeaturesBenchmark() void {
     // Randomly place 3 pieces
     var xor: std.Random.Xoroshiro128 = .init(0);
     const rand = xor.random();
-    var game: GameState = .init(SevenBag.init(xor.next()), &engine.kicks.srsPlus);
+    var game: GameState = .init(.init(xor.next()), &engine.kicks.srsPlus);
     for (0..3) |_| {
         game.current.facing = rand.enumValue(engine.pieces.Facing);
         game.pos.x = rand.intRangeAtMost(

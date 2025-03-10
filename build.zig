@@ -73,7 +73,8 @@ fn minifyJson(
         .name = "minify-json",
         .root_source_file = b.path("src/build/minify-json.zig"),
         .target = b.resolveTargetQuery(
-            Build.parseTargetQuery(.{}) catch unreachable,
+            Build.parseTargetQuery(.{}) catch
+                @panic("minifyJson: Failed to resolve target"),
         ),
     });
 

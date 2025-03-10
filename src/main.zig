@@ -196,18 +196,18 @@ pub fn enumValuesHelp(ArgsT: type, Enum: type) []const u8 {
     var fba: std.heap.FixedBufferAllocator = .init(&buf);
     const allocator = fba.allocator();
 
-    var str = std.ArrayList(u8)
-        .initCapacity(allocator, total_len) catch unreachable;
+    var str = std.ArrayList(u8).initCapacity(allocator, total_len) catch
+        @panic("Out of memory");
     const writer = str.writer();
 
-    writer.writeAll("Supported Values: [") catch unreachable;
+    writer.writeAll("Supported Values: [") catch @panic("Out of memory");
     for (@typeInfo(Enum).@"enum".fields, 0..) |field, i| {
-        writer.writeAll(field.name) catch unreachable;
+        writer.writeAll(field.name) catch @panic("Out of memory");
         if (i < @typeInfo(Enum).@"enum".fields.len - 1) {
-            writer.writeByte(',') catch unreachable;
+            writer.writeByte(',') catch @panic("Out of memory");
         }
     }
-    writer.writeByte(']') catch unreachable;
+    writer.writeByte(']') catch @panic("Out of memory");
 
     return str.items;
 }

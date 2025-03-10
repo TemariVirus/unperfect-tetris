@@ -262,7 +262,7 @@ pub fn allPlacementsRaw(
             stack.append(TPiecePosition.pack(piece, .{
                 .x = x,
                 .y = @as(i8, max_height) + piece.minY(),
-            })) catch unreachable;
+            })) catch @panic("Placement stack too small");
         }
     }
 
@@ -298,7 +298,7 @@ pub fn allPlacementsRaw(
             // Branch out after movement
             stack.append(
                 TPiecePosition.pack(new_game.current, new_game.pos),
-            ) catch unreachable;
+            ) catch @panic("Placement stack too small");
 
             // Skip this placement if the piece is too high, or if it's not on
             // the ground
@@ -317,13 +317,12 @@ pub fn allPlacementsRaw(
 pub const MoveNode = struct {
     placement: Placement,
     score: f32,
-};
-const compareFn = (struct {
+
     fn cmp(_: void, a: MoveNode, b: MoveNode) Order {
         return std.math.order(b.score, a.score);
     }
-}).cmp;
-pub const MoveQueue = std.PriorityQueue(MoveNode, void, compareFn);
+};
+pub const MoveQueue = std.PriorityQueue(MoveNode, void, MoveNode.cmp);
 
 /// Scores and orders the moves in `moves` based on the `scoreFn`, removing
 /// placements where `validFn` returns `false`. Higher scores are dequeued first.
@@ -350,7 +349,7 @@ pub fn orderMoves(
         queue.add(.{
             .placement = placement,
             .score = scoreFn(board, max_height, nn),
-        }) catch unreachable;
+        }) catch @panic("Out of memory");
     }
 }
 

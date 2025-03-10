@@ -28,7 +28,10 @@ var load_default_nn = std.once((struct {
 
     pub fn load() void {
         var fba = std.heap.FixedBufferAllocator.init(&buffer);
-        default_nn = loadNNFromStr(fba.allocator(), @embedFile("nn_4l_json"));
+        default_nn = loadNNFromStr(fba.allocator(), @embedFile("nn_4l_json")) catch |e| switch (e) {
+            error.OutOfMemory => @panic("Out of memory"),
+            else => @panic("Invalid JSON"),
+        };
     }
 }).load);
 pub fn defaultNN(allocator: Allocator) !NN {
@@ -288,19 +291,18 @@ pub fn findPcAuto(
     return try shrinkMemory(Placement, allocator, placements, solution.len);
 }
 
-pub fn loadNNFromStr(allocator: Allocator, json_str: []const u8) NN {
-    const obj = json.parseFromSlice(
+pub fn loadNNFromStr(allocator: Allocator, json_str: []const u8) !NN {
+    const obj = try json.parseFromSlice(
         NNInner.NNJson,
         allocator,
         json_str,
-        .{ .ignore_unknown_fields = true },
-    ) catch unreachable;
+        .{},
+    );
     defer obj.deinit();
 
     var inputs_used: [NN.INPUT_COUNT]bool = undefined;
-    const _nn =
-        NNInner.fromJson(allocator, obj.value, &inputs_used) catch unreachable;
-    return NN{
+    const _nn = try NNInner.fromJson(allocator, obj.value, &inputs_used);
+    return .{
         .net = _nn,
         .inputs_used = inputs_used,
     };

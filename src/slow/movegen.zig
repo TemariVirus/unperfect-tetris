@@ -105,7 +105,7 @@ pub fn orderMoves(
                 board.rows[0..@min(BoardMask.HEIGHT, new_height)],
                 nn,
             ),
-        }) catch unreachable;
+        }) catch @panic("Out of memory");
     }
 }
 

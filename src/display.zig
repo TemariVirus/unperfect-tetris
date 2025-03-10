@@ -216,10 +216,15 @@ pub fn main(allocator: Allocator, args: DisplayArgs, path: []const u8) !void {
             .height = 2,
         });
 
-        var buf: [53]u8 = undefined;
+        var buf: [
+            std.fmt.count("Solution {d} of {d}", .{
+                std.math.maxInt(@TypeOf(pos)),
+                std.math.maxInt(@TypeOf(solution_count)),
+            })
+        ]u8 = undefined;
         const text = std.fmt.bufPrint(
             &buf,
-            "Solution {} of {}",
+            "Solution {d} of {d}",
             .{ pos + 1, solution_count },
         ) catch unreachable;
         _ = footer_win.printSegment(

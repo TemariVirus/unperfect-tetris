@@ -128,7 +128,8 @@ pub fn main() !void {
         const final_fitnesses = try allocator.alloc(f64, fitnesses.len);
         defer allocator.free(final_fitnesses);
         for (0..fitnesses.len) |i| {
-            final_fitnesses[i] = fitnesses[i] orelse unreachable;
+            final_fitnesses[i] = fitnesses[i] orelse
+                @panic("Fitness set to null after being non-null");
         }
 
         printGenerationStats(trainer, final_fitnesses);
