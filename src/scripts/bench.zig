@@ -72,8 +72,9 @@ pub fn pcBenchmark(
         \\
     , .{ height, std.fs.path.stem(nn_path), slow });
 
-    // For some reason std.heap.smp_allocator takes forever when height = 6
-    const allocator = std.heap.page_allocator;
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
 
     const nn = try NN.load(allocator, nn_path);
     defer nn.deinit(allocator);

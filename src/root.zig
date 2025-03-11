@@ -28,7 +28,10 @@ var load_default_nn = std.once((struct {
 
     pub fn load() void {
         var fba = std.heap.FixedBufferAllocator.init(&buffer);
-        default_nn = loadNNFromStr(fba.allocator(), @embedFile("nn_4l_json")) catch |e| switch (e) {
+        default_nn = loadNNFromStr(
+            fba.allocator(),
+            @embedFile("nn_4l_json"),
+        ) catch |e| switch (e) {
             error.OutOfMemory => @panic("Out of memory"),
             else => @panic("Invalid JSON"),
         };
@@ -242,7 +245,7 @@ pub fn minPcInfo(playfield: BoardMask) ?struct {
 /// the sequence. If `save_hold` is `null`, this constraint is ignored.
 ///
 /// Returns an error if no perfect clear exists, or if the number of pieces
-/// needed exceeds `max_pieces`.
+/// needed exceeds `max_len`.
 pub fn findPcAuto(
     comptime BagType: type,
     allocator: Allocator,

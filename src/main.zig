@@ -18,11 +18,11 @@ const kicks = @import("engine").kicks;
 const zig_args = @import("zig-args");
 const Error = zig_args.Error;
 
-const IS_DEBUG = switch (@import("builtin").mode) {
+const runtime_safety = switch (@import("builtin").mode) {
     .Debug, .ReleaseSafe => true,
     .ReleaseFast, .ReleaseSmall => false,
 };
-var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
+var gpa: std.heap.DebugAllocator(.{}) = .init;
 
 const Args = struct {
     help: bool = false,
@@ -84,12 +84,9 @@ pub const KicksOption = enum {
 };
 
 pub fn main() !void {
-    const allocator = if (IS_DEBUG)
-        debug_allocator.allocator()
-    else
-        std.heap.smp_allocator;
-    defer if (IS_DEBUG) {
-        _ = debug_allocator.deinit();
+    const allocator = gpa.allocator();
+    defer if (runtime_safety) {
+        _ = gpa.deinit();
     };
 
     const stdout = std.io.getStdOut().writer();

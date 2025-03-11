@@ -839,7 +839,7 @@ fn readPage(self: *FumenReader) AllocOrFumenError!void {
     }
 
     // Place piece
-    if (piece) |p| blk: {
+    if (piece) |p| outer: {
         for (0..4) |x| {
             for (0..4) |y| {
                 if (!p.mask().get(x, y)) {
@@ -858,10 +858,13 @@ fn readPage(self: *FumenReader) AllocOrFumenError!void {
                 {
                     return FumenError.InvalidPieceLocation;
                 }
-                const index: usize = if (@as(i32, mino_pos.y) * FIELD_WIDTH + mino_pos.x < 0)
-                    continue
-                else
-                    @intCast(@as(i32, mino_pos.y) * FIELD_WIDTH + mino_pos.x);
+                const index: usize = blk: {
+                    const index: i32 = @as(i32, mino_pos.y) * FIELD_WIDTH + mino_pos.x;
+                    if (index < 0) {
+                        continue;
+                    }
+                    break :blk @intCast(index);
+                };
                 // Pieces should not overlap with existing blocks
                 if (self.field[index] != .empty) {
                     return FumenError.InvalidPieceLocation;
@@ -875,7 +878,7 @@ fn readPage(self: *FumenReader) AllocOrFumenError!void {
             self.hold == null and
             self.next.items.len == 0)
         {
-            break :blk;
+            break :outer;
         }
 
         assert(self.current != null);

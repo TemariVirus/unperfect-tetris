@@ -109,6 +109,10 @@ pub fn main(allocator: Allocator, args: DemoArgs, nn: ?NN) !void {
     var placement_i: usize = 0;
     var pc_queue: SolutionList = try .initCapacity(allocator, MAX_PC_QUEUE);
     defer pc_queue.deinit();
+    defer for (pc_queue.items) |solution| {
+        allocator.free(solution);
+    };
+    var pc_queue_lock: std.Thread.Mutex = .{};
 
     const pc_thread: std.Thread = try .spawn(.{
         .allocator = allocator,
@@ -118,6 +122,7 @@ pub fn main(allocator: Allocator, args: DemoArgs, nn: ?NN) !void {
         args.@"min-height",
         player.state,
         &pc_queue,
+        &pc_queue_lock,
     });
     pc_thread.detach();
 
@@ -141,7 +146,13 @@ pub fn main(allocator: Allocator, args: DemoArgs, nn: ?NN) !void {
         }
         while (place_timer.trigger()) |_| {
             triggered = true;
-            placePcPiece(allocator, &player, &pc_queue, &placement_i);
+            placePcPiece(
+                allocator,
+                &player,
+                &pc_queue,
+                &pc_queue_lock,
+                &placement_i,
+            );
         }
 
         if (!triggered) {
@@ -154,6 +165,7 @@ fn placePcPiece(
     allocator: Allocator,
     game: *Player,
     queue: *SolutionList,
+    queue_lock: *std.Thread.Mutex,
     placement_i: *usize,
 ) void {
     if (queue.items.len == 0) {
@@ -172,6 +184,8 @@ fn placePcPiece(
 
     // Start next perfect clear
     if (placement_i.* == placements.len) {
+        queue_lock.lock();
+        defer queue_lock.unlock();
         allocator.free(queue.orderedRemove(0));
         placement_i.* = 0;
     }
@@ -183,6 +197,7 @@ fn pcThread(
     min_height: u7,
     state: GameState,
     queue: *SolutionList,
+    queue_lock: *std.Thread.Mutex,
 ) !void {
     var game = state;
     const max_len = @max(15, ((@as(usize, min_height) + 1) * 10 / 4));
@@ -213,7 +228,11 @@ fn pcThread(
             game.nextPiece();
         }
 
-        try queue.append(solution);
+        {
+            queue_lock.lock();
+            defer queue_lock.unlock();
+            queue.appendAssumeCapacity(solution);
+        }
     }
 }
 

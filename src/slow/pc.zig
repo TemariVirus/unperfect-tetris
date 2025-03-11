@@ -33,6 +33,10 @@ pub fn findPc(
     placements: []Placement,
     save_hold: ?PieceKind,
 ) ![]Placement {
+    var arena: std.heap.ArenaAllocator = .init(allocator);
+    defer arena.deinit();
+    const arena_allocator = arena.allocator();
+
     const pc_info = root.minPcInfo(game.playfield) orelse
         return FindPcError.NoPcExists;
     var pieces_needed: u16 = pc_info.pieces_needed;
@@ -40,11 +44,10 @@ pub fn findPc(
 
     const pieces = try root.pc.getPieces(
         BagType,
-        allocator,
+        arena_allocator,
         game,
         placements.len + 1,
     );
-    defer allocator.free(pieces);
 
     if (save_hold) |hold| {
         // Requested hold piece is not in queue/hold
@@ -57,18 +60,13 @@ pub fn findPc(
         }
     }
 
-    var cache: NodeSet = .init(allocator);
-    defer cache.deinit();
+    var cache: NodeSet = .init(arena_allocator);
 
     // Pre-allocate a queue for each placement
-    const queues = try allocator.alloc(movegen.MoveQueue, placements.len);
+    const queues = try arena_allocator.alloc(movegen.MoveQueue, placements.len);
     for (0..queues.len) |i| {
-        queues[i] = .init(allocator, {});
+        queues[i] = .init(arena_allocator, {});
     }
-    defer allocator.free(queues);
-    defer for (queues) |queue| {
-        queue.deinit();
-    };
 
     const do_o_rotations = root.pc.hasOKicks(game.kicks);
 
