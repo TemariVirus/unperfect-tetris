@@ -33,7 +33,9 @@ comptime {
 }
 const NEXT_LEN = HEIGHT * 10 / 4;
 // Number of threads to use
-const THREADS = 2;
+// Linux has 4 CPUs with 16GB RAM
+// https://docs.github.com/en/actions/writing-workflows/choosing-where-your-workflow-runs/choosing-the-runner-for-a-job#choosing-github-hosted-runners
+const THREADS = 4;
 
 const SAVE_PATH = std.fmt.comptimePrint("pc-data/{}-no-srs-srsplus-srstetrio", .{HEIGHT});
 
@@ -391,7 +393,6 @@ const handle_signals = [_]c_int{
     SIG.ABRT,
     SIG.INT,
     SIG.QUIT,
-    SIG.STOP,
     SIG.TERM,
 };
 fn setupExitHandler() void {

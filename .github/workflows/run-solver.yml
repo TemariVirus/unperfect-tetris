@@ -1,0 +1,24 @@
+name: Run solver
+on:
+  workflow_dispatch:
+jobs:
+  run-solver:
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Run solver
+        run: |
+          chmod +x ./.github/workflows/bin/solve
+          ./.github/workflows/bin/solve
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Update solver output files
+          branch: ${{ github.head_ref }}
