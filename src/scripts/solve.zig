@@ -33,9 +33,9 @@ comptime {
 }
 const NEXT_LEN = HEIGHT * 10 / 4;
 // Number of threads to use
-const THREADS = 6;
+const THREADS = 2;
 
-const SAVE_PATH = std.fmt.comptimePrint("pc-data/{}", .{HEIGHT});
+const SAVE_PATH = std.fmt.comptimePrint("pc-data/{}-no-srs-srsplus-srstetrio", .{HEIGHT});
 
 // Count of threads saving to disk to make sure all threads finish saving
 // before exiting.
@@ -76,7 +76,7 @@ const SolutionBuffer = struct {
     /// Loads a SolutionBuffer with data from disk or initializes a new one if
     /// the files don't exist.
     pub fn loadOrInit(allocator: Allocator, path: []const u8) !SolutionBuffer {
-        const pc_path = try std.fmt.allocPrint(allocator, "{s}.pc", .{path});
+        const pc_path = try std.fmt.allocPrint(allocator, "{s}.txt", .{path});
         defer allocator.free(pc_path);
         const count_path = try std.fmt.allocPrint(
             allocator,
@@ -99,8 +99,7 @@ const SolutionBuffer = struct {
             defer file.close();
 
             const stat = try file.stat();
-            const SOLUTION_SIZE = 8 + NEXT_LEN;
-            self.solved = @divExact(stat.size, SOLUTION_SIZE);
+            self.solved = @divExact(stat.size, NEXT_LEN + 2);
         }
 
         // Get count
@@ -214,7 +213,7 @@ const SolutionBuffer = struct {
         const pc_file = blk: {
             const pc_path = try std.fmt.allocPrint(
                 allocator,
-                "{s}.pc",
+                "{s}.txt",
                 .{path},
             );
             defer allocator.free(pc_path);
@@ -289,37 +288,13 @@ const SolutionBuffer = struct {
         for (
             self.sequences[mask(self.read_idx.raw)][0..len],
             self.solutions[mask(self.read_idx.raw)][0..len],
-        ) |seq, sol| {
-            var holds: u16 = 0;
-            var placements: [NEXT_LEN]u8 = @splat(0);
-
+        ) |seq, _| {
             const sequence = PCSolution.unpackNext(seq);
-
-            var hold = sequence.buffer[0];
-            var current = sequence.buffer[1];
-            for (sol, 0..) |placement, i| {
-                // Use canonical position so that the position is always in the
-                // range [0, 59]
-                const canon_pos = placement.piece
-                    .canonicalPosition(placement.pos);
-                const pos = canon_pos.y * 10 + canon_pos.x;
-                assert(pos < 60);
-                placements[i] = @intFromEnum(placement.piece.facing) |
-                    (@as(u8, pos) << 2);
-
-                if (current != placement.piece.kind) {
-                    holds |= @as(u16, 1) << @intCast(i);
-                    hold = current;
-                }
-                // Only update current if it's not the last piece
-                if (i < sol.len - 1) {
-                    current = sequence.buffer[i + 2];
-                }
+            for (sequence.slice()) |p| {
+                const name = @tagName(p)[0];
+                try pc_writer.writeByte(std.ascii.toUpper(name));
             }
-
-            try pc_writer.writeInt(u48, seq, .little);
-            try pc_writer.writeInt(u16, holds, .little);
-            try pc_writer.writeAll(&placements);
+            try pc_writer.writeByte('\n');
         }
     }
 
@@ -336,13 +311,13 @@ const SolutionBuffer = struct {
             {
                 const pc_path = try std.fmt.allocPrint(
                     allocator,
-                    "{s}.pc",
+                    "{s}.txt",
                     .{path},
                 );
                 defer allocator.free(pc_path);
                 const backup_path = try std.fmt.allocPrint(
                     allocator,
-                    "{s}-backup.pc",
+                    "{s}-backup.txt",
                     .{path},
                 );
                 defer allocator.free(backup_path);
@@ -386,10 +361,7 @@ const SolutionBuffer = struct {
 pub fn main() !void {
     setupExitHandler();
 
-    const allocator = if (IS_DEBUG)
-        debug_allocator.allocator()
-    else
-        std.heap.smp_allocator;
+    const allocator = debug_allocator.allocator();
     defer if (IS_DEBUG) {
         _ = debug_allocator.deinit();
     };
@@ -474,19 +446,36 @@ fn solveThread(buf: *SolutionBuffer) !void {
 
         var solved: usize = 0;
         for (sequences) |seq| {
-            _ = pc.findPc(
+            var s = pc.findPc(
                 SevenBag,
                 allocator,
-                gameWithPieces(PCSolution.unpackNext(seq)),
+                gameWithPieces(PCSolution.unpackNext(seq), engine.kicks.srsPlus),
                 nn,
                 HEIGHT,
                 &solutions[solved],
                 null,
-            ) catch |e| if (e == root.FindPcError.SolutionTooLong) {
-                continue;
-            } else {
+            ) catch |e| if (e == root.FindPcError.SolutionTooLong) null else {
                 return e;
             };
+            if (s) |_| {
+                continue;
+            }
+
+            s = pc.findPc(
+                SevenBag,
+                allocator,
+                // Super set of plain srs
+                gameWithPieces(PCSolution.unpackNext(seq), engine.kicks.srsTetrio),
+                nn,
+                HEIGHT,
+                &solutions[solved],
+                null,
+            ) catch |e| if (e == root.FindPcError.SolutionTooLong) null else {
+                return e;
+            };
+            if (s) |_| {
+                continue;
+            }
 
             sequences[solved] = seq;
             solved += 1;
@@ -497,10 +486,10 @@ fn solveThread(buf: *SolutionBuffer) !void {
     }
 }
 
-fn gameWithPieces(pieces: PCSolution.NextArray) GameState {
+fn gameWithPieces(pieces: PCSolution.NextArray, kicks: *const engine.kicks.KickFn) GameState {
     assert(pieces.len >= 2);
 
-    var game: GameState = .init(.init(0), engine.kicks.srs);
+    var game: GameState = .init(.init(0), kicks);
     game.hold_kind = pieces.buffer[0];
     game.current.kind = pieces.buffer[1];
 
