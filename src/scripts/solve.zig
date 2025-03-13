@@ -1,5 +1,3 @@
-//! zig build solve -Doptimize=ReleaseFast -Dtarget=x86_64-linux -Dcpu=x86_64_v4
-
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const AnyWriter = std.io.AnyWriter;
