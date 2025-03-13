@@ -1,3 +1,5 @@
+//! zig build solve -Doptimize=ReleaseFast -Dtarget=x86_64-linux -Dcpu=x86_64_v4
+
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const AnyWriter = std.io.AnyWriter;
@@ -26,6 +28,9 @@ const IS_DEBUG = switch (@import("builtin").mode) {
 };
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
+var start_time: std.atomic.Value(i128) = undefined;
+const TIMEOUT: ?u64 = 30 * std.time.ns_per_s;
+
 // Height of perfect clears to find
 const HEIGHT = 4;
 comptime {
@@ -35,7 +40,7 @@ const NEXT_LEN = HEIGHT * 10 / 4;
 // Number of threads to use
 // Linux has 4 CPUs with 16GB RAM
 // https://docs.github.com/en/actions/writing-workflows/choosing-where-your-workflow-runs/choosing-the-runner-for-a-job#choosing-github-hosted-runners
-const THREADS = 4;
+const THREADS = 2;
 
 const SAVE_PATH = std.fmt.comptimePrint("pc-data/{}-no-srs-srsplus-srstetrio", .{HEIGHT});
 
@@ -361,6 +366,7 @@ const SolutionBuffer = struct {
 };
 
 pub fn main() !void {
+    start_time.store(std.time.nanoTimestamp(), .monotonic);
     setupExitHandler();
 
     const allocator = debug_allocator.allocator();
@@ -433,6 +439,14 @@ fn handleExitWindows(sig: c_int, _: c_int) callconv(.C) void {
     handleExit(sig);
 }
 
+fn shouldTimeout() bool {
+    if (TIMEOUT) |to| {
+        const time_passed = std.time.nanoTimestamp() - start_time.load(.monotonic);
+        return time_passed > to;
+    }
+    return false;
+}
+
 fn solveThread(buf: *SolutionBuffer) !void {
     const allocator = if (IS_DEBUG)
         debug_allocator.allocator()
@@ -484,6 +498,10 @@ fn solveThread(buf: *SolutionBuffer) !void {
 
         sol_count.store(@intCast(solved), .monotonic);
         try buf.writeDoneChunks(SAVE_PATH);
+
+        if (shouldTimeout()) {
+            return;
+        }
     }
 }
 
