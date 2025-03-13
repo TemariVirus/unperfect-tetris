@@ -27,7 +27,7 @@ const IS_DEBUG = switch (@import("builtin").mode) {
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
 var start_time: std.atomic.Value(i128) = undefined;
-const TIMEOUT: ?u64 = 30 * std.time.ns_per_s;
+const TIMEOUT: ?u64 = 5 * std.time.ns_per_hour;
 
 // Height of perfect clears to find
 const HEIGHT = 4;
@@ -38,7 +38,7 @@ const NEXT_LEN = HEIGHT * 10 / 4;
 // Number of threads to use
 // Linux has 4 CPUs with 16GB RAM
 // https://docs.github.com/en/actions/writing-workflows/choosing-where-your-workflow-runs/choosing-the-runner-for-a-job#choosing-github-hosted-runners
-const THREADS = 2;
+const THREADS = 4;
 
 const SAVE_PATH = std.fmt.comptimePrint("pc-data/{}-no-srs-srsplus-srstetrio", .{HEIGHT});
 
